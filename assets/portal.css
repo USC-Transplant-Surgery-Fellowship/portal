@@ -1,0 +1,100 @@
+/*
+ * Portal only. The shared look (pager header, colors, sheets, keys, buttons, light/dark) is in styles.css,
+ * which is the same file on all three sites (time off, call schedule, portal) — change it in all of them together.
+ */
+
+/* ── layout: phones keep one column in this order; computers get two columns (styles.css: main.split) ── */
+@media (max-width: 959px) {
+  main.portal:not([hidden]) { display: flex; flex-direction: column; }
+  main.portal > .col { display: contents; }
+  #findCard { order: 1; } #peopleCard { order: 2; } #sitesCard { order: 3; } #groupCard { order: 4; } #logCard { order: 5; }
+}
+
+/* ── your sites ── */
+.sites { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.sites li { display: flex; gap: 8px; }
+.sites a { display: flex; align-items: center; min-height: 44px; padding: 8px 14px; border-radius: 8px; font-weight: 800; text-decoration: none; }
+.sites .site-link { flex: 1 1 auto; color: #fff; background: var(--cardinal); box-shadow: inset 0 -3px 0 var(--gold), 0 2px 0 var(--cardinal-deep); }
+.sites .site-link::after { content: '›'; margin-left: auto; padding-left: 8px; font-size: 20px; line-height: 1; }
+.sites .site-admin { flex: 0 0 auto; color: var(--accent); background: var(--sheet); border: 1.5px solid var(--accent); box-shadow: 0 2px 0 var(--cardinal-soft); }
+.sites a:active { transform: translateY(2px); box-shadow: none; }
+
+/* ── finding people ── */
+#search { margin-bottom: 12px; }
+.filters { margin: 0; }
+.filters .tab { padding: 8px 6px; min-height: 44px; font-size: 14px; }
+.filters .tab small { font-variant-numeric: tabular-nums; }
+
+/* ── Google Group ── */
+.group-counts { font-size: 14px; font-weight: 700; margin: 0 0 12px; }
+.toolbar.one { grid-template-columns: 1fr; margin-top: 0; }
+
+/* ── the member list ── */
+.people-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px dotted var(--line-strong); }
+.people-title h2 { margin: 0; padding: 0; border: 0; }
+.people-title .secondary { flex: 0 0 auto; }
+.banner { background: var(--gold-soft); border: 1.5px solid var(--gold-edge); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-bottom: 12px; }
+#status { margin: 0 0 12px; }
+.sec { margin-top: 18px; }
+.sec:first-child { margin-top: 0; }
+.sec h3 { font-size: 15px; font-weight: 800; margin: 0 0 4px; color: var(--accent); }
+.people { list-style: none; margin: 0; padding: 0; }
+.person { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+.person:first-child { border-top: 0; }
+.person-main { flex: 1 1 auto; min-width: 0; }
+.person-name b { font-size: 17px; overflow-wrap: anywhere; }
+.person-name .chip:first-of-type, .person-name .chip-you { margin-left: 8px; }
+.person-name .chip { margin-left: 4px; }
+.person-sub { font-size: 14px; color: var(--muted); }
+.person-contact { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 15px; margin-top: 2px; }
+.person-contact a { overflow-wrap: anywhere; text-decoration: none; }
+.person-contact a:hover { text-decoration: underline; }
+.person-roles { font-size: 14px; margin-top: 4px; }
+.person-warn { font-size: 14px; font-weight: 700; color: var(--err); margin-top: 4px; }
+.person-actions { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.person.editing { display: block; }
+@media (max-width: 599px) {
+  .person { flex-direction: column; gap: 8px; }
+  .person-actions { flex-direction: row; }
+}
+
+/* ── adding and editing someone ── */
+.add-wrap { background: var(--sheet-sunk); border: 1px solid var(--line); border-radius: 8px; padding: 12px 12px 14px; margin-bottom: 16px; }
+.add-wrap h3 { font-size: 16px; font-weight: 800; margin: 0 0 10px; }
+.person.editing .person-form { background: var(--sheet-sunk); border: 1px solid var(--line); border-radius: 8px; padding: 12px 12px 14px; }
+.pf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.pf-field { display: block; min-width: 0; }
+.pf-field.wide { grid-column: 1 / -1; }
+.pf-field input:disabled { opacity: .7; cursor: not-allowed; }
+.pf-hint { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+.pf-phones { margin-top: 12px; }
+.pf-phone { display: flex; gap: 8px; margin-bottom: 8px; }
+.pf-phone input { flex: 1 1 auto; min-width: 0; }
+.pf-phone .secondary { flex: 0 0 auto; }
+input[type="tel"] {
+  width: 100%; font: inherit; font-size: 16px; color: var(--ink); background-color: var(--sheet);
+  border: 1.5px solid var(--line-strong); border-radius: 8px; padding: 10px 12px; min-height: 46px;
+}
+.pf-more { color: var(--accent); font-weight: 700; text-decoration: none; min-height: 36px; }
+.pf-roles { border: 0; margin: 14px 0; padding: 12px 0; border-top: 2px dotted var(--line-strong); border-bottom: 2px dotted var(--line-strong); min-width: 0; }
+.pf-roles legend { font-weight: 800; font-size: 16px; padding: 0; margin-bottom: 6px; }
+.pf-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.pf-presets .pf-hint { margin: 0 4px 0 0; }
+.toggle {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px;
+  font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer;
+  background: var(--sheet); border: 1.5px solid var(--line-strong); border-radius: 999px;
+}
+.toggle:hover { border-color: var(--muted); color: var(--ink); }
+.pf-app { margin-bottom: 8px; }
+.pf-app-name { display: block; font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.rolekeys { margin-bottom: 0; }
+.rolekeys .tab { padding: 8px 4px; min-height: 42px; font-size: 14px; }
+.pf-check { margin: 12px 0 0; }
+.pf-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.pf-actions .primary.small { width: auto; margin: 0; padding: 10px 18px 12px; }
+@media (max-width: 599px) {
+  .pf-grid { grid-template-columns: 1fr; }
+  /* five role choices don't fit in a row on a phone: three, then two */
+  .rolekeys.many { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
