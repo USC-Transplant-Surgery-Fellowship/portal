@@ -2,12 +2,13 @@
 
 The member list for the USC Transplant Surgery Fellowship's sites: **https://portal.usctransplant.life**
 
-- **Everyone with a portal role** sees the member list: names, emails, phone numbers, graduating years or job titles,
-  and what each person can do on each site — with links to the sites they can use.
+- **Everyone on the member list** sees it: names, emails, phone numbers, graduating years or job titles, and what each
+  person can do on each site — with links to the sites they can use. Each person can edit their own information
+  (not their primary email or roles).
 - **Admins** add, edit and remove people and set their role on each site (time off, call schedule, portal): none,
-  viewer, fellow, admin, or fellow + admin. They mark **attendings** (offered by last name when adding a living donor
-  case), approve or decline **sign-ups**, check that the calendars are shared with every fellow, and see the recent
-  changes. Only a super admin can make or change super admins.
+  viewer, fellow and/or admin. They mark **attendings** (offered by last name when adding a living donor case) and
+  **HPB fellows** (who may share a service with another fellow), approve or decline **sign-ups**, share the calendars
+  with every fellow, and see the recent changes. Only a super admin can make or change super admins.
 - **New people** sign up at `/signup.html`: they sign in (with Google, or a code emailed to any address) and say who
   they are; an admin approves them. The page also explains how to make a Google account with a non-Gmail address.
 
