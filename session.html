@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>Fellowship sign-in</title>
+</head>
+<body>
+  <p style="font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:520px;margin:48px auto;padding:0 16px">
+    This page keeps you signed in across the fellowship sites. There is nothing to see here:
+    <a href="./">open the portal</a>.
+  </p>
+  <script>
+  /*
+   * One sign-in for the fellowship sites. Each site's api.js opens this page in a hidden frame and asks it, by message:
+   *   { type: 'get', id }          → { id, token }   the saved Google sign-in token, or '' if there is none (or it expired)
+   *   { type: 'set', id, token }   → { id, ok }      saves a token after someone signs in
+   *   { type: 'clear', id }        → { id, ok }      forgets it (Sign out, or the server refused it)
+   * Only the sites below may ask, and only tokens Google issued for the sites' sign-in client are saved. The token is
+   * kept in this browser (on this page's address) until it expires, within an hour.
+   */
+  (function () {
+    var SITES = ['https://timeoff.usctransplant.life', 'https://schedule.usctransplant.life', 'https://portal.usctransplant.life'];
+    var CLIENT_ID = '72967386715-cgntqve43vc2ptpkhprgalf714vtke38.apps.googleusercontent.com'; // as in api.js
+    var KEY = 'fellowship.idToken';
+
+    function payload(t) {
+      try {
+        var p = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (p.length % 4) p += '=';
+        return JSON.parse(decodeURIComponent(escape(atob(p))));
+      } catch (e) { return null; }
+    }
+    function good(t) {
+      var p = t && payload(t);
+      return !!(p && p.aud === CLIENT_ID && /^(https:\/\/)?accounts\.google\.com$/.test(p.iss) && p.exp * 1000 > Date.now() + 60000);
+    }
+    function read() {
+      try {
+        var t = localStorage.getItem(KEY) || '';
+        if (t && !good(t)) { localStorage.removeItem(KEY); t = ''; }
+        return t;
+      } catch (e) { return ''; }
+    }
+    function write(t) {
+      try { if (t) localStorage.setItem(KEY, t); else localStorage.removeItem(KEY); return true; } catch (e) { return false; }
+    }
+
+    window.addEventListener('message', function (e) {
+      if (SITES.indexOf(e.origin) === -1 || !e.source || !e.data || typeof e.data !== 'object') return;
+      var m = e.data, reply = { id: m.id };
+      if (m.type === 'get') reply.token = read();
+      else if (m.type === 'set') reply.ok = good(m.token) && write(m.token);
+      else if (m.type === 'clear') reply.ok = write('');
+      else return;
+      e.source.postMessage(reply, e.origin);
+    });
+    // Tells the page it can start asking (nothing secret in it, so any page that opens this one may hear it).
+    if (window.parent !== window) window.parent.postMessage({ type: 'hub-ready' }, '*');
+  })();
+  </script>
+</body>
+</html>

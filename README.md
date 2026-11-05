@@ -1,2 +1,50 @@
-# portal
-The fellowship portal: member list, roles and attendngs, and the shared sign-in (portal.usctransplant.lie)
+# Fellowship Portal
+
+The member list for the USC Transplant Surgery Fellowship's sites: **https://portal.usctransplant.life**
+
+- **Everyone with a portal role** sees the member list: names, emails, phone numbers, graduating years or job titles,
+  and what each person can do on each site — with links to the sites they can use.
+- **Admins** add, edit and remove people and set their role on each site (time off, call schedule, portal): none,
+  viewer, fellow, admin, or fellow + admin. They mark **attendings** (offered by last name when adding a living donor
+  case), see who is in the Google Group, and see the recent changes. Only a super admin can make or change super admins.
+
+It also holds `session.html`, which keeps the Google sign-in for all three sites: sign in on any of them and you are
+signed in on the others; Sign out on any of them signs out of all.
+
+## How it fits together
+
+```
+Browser ──► this repository (GitHub Pages: the pages people see)
+              │  "Sign in with Google" → a Google ID token (kept by session.html for all three sites)
+              ▼
+            Google Apps Script web app (private repository: timeoff-backend, registry.gs)
+              checks the token, then reads and saves the member list (Script Properties)
+```
+
+The same server runs the time-off site (https://timeoff.usctransplant.life) and the call schedule
+(https://schedule.usctransplant.life), and both ask the member list who may do what. This repository holds only the
+pages — no personal data.
+
+| File | What it is |
+|---|---|
+| `index.html` | The portal |
+| `session.html` | The shared sign-in (opened invisibly by every page of the three sites) |
+| `assets/portal.css` | Styles used only by this site |
+| `assets/styles.css`, `assets/ui.js`, `assets/api.js`, `assets/fonts/` | **Shared with the time-off and schedule sites** — keep identical in all three repositories (a GitHub check compares them) |
+| `CNAME` | The custom domain for GitHub Pages |
+
+## Making changes
+
+- Page changes: edit here and commit to `main`; GitHub Pages publishes within a minute or two.
+- Shared files: make the same change in the `timeoff` and `schedule` repositories. The **Shared files** check on the
+  Actions tab warns when the copies differ.
+- If the Google sign-in client changes, update `CLIENT_ID` in `session.html` too (and see the time-off README).
+- If a site's address changes or a site is added, update `SITES` in `session.html` (the sites allowed to use the sign-in)
+  and `RG_APPS` in `registry.gs`.
+- Roles, apps and the rules for changing people are in the private `timeoff-backend` repository (`registry.gs`).
+
+## Hosting
+
+GitHub Pages: Settings → Pages → Deploy from branch `main` / root, custom domain `portal.usctransplant.life`, Enforce HTTPS.
+DNS (Squarespace, domain usctransplant.life): CNAME `portal` → `usc-transplant-surgery-fellowship.github.io`.
+Sign-in: the Google Cloud OAuth client lists `https://portal.usctransplant.life` as an authorized JavaScript origin.

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fellowship Portal</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23990000'/%3E%3Crect x='5' y='7' width='22' height='13' rx='3' fill='%23c3ce9c'/%3E%3Cpath d='M8 11h2v2H8zm3 0h2v2h-2zm3 0h2v2h-2zm-6 4h2v2H8zm3 0h2v2h-2z' fill='%23232c17'/%3E%3Crect x='9' y='24' width='14' height='3' rx='1.5' fill='%23ffcc00'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#990000">
+  <link rel="preload" href="assets/fonts/doto.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/portal.css">
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/api.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <div class="lcd">
+        <div class="eyebrow">USC Transplant Surgery Fellowship</div>
+        <h1>Portal</h1>
+      </div>
+      <div class="who" id="who"></div>
+    </div>
+  </header>
+
+  <div id="auth"><section class="card"><div class="loading">Loading…</div></section></div>
+  <main id="app" class="split portal" hidden>
+    <div class="col side">
+      <section class="card" id="sitesCard">
+        <h2>Your sites</h2>
+        <ul class="sites" id="sites"></ul>
+      </section>
+
+      <section class="card" id="findCard">
+        <h2>Find someone</h2>
+        <label class="label" for="search">Name, email or phone</label>
+        <input id="search" type="text" autocomplete="off" placeholder="e.g. Russell">
+        <div class="keys filters" role="radiogroup" aria-label="Show" id="filters"></div>
+      </section>
+
+      <section class="card" id="groupCard" hidden>
+        <h2>Google Group</h2>
+        <p class="hint" id="groupText"></p>
+        <p class="group-counts" id="groupCounts"></p>
+        <div class="toolbar one">
+          <button class="secondary" id="recheck" type="button">Check again</button>
+        </div>
+        <div class="status" id="groupStatus" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="card" id="logCard" hidden>
+        <h2>Recent changes</h2>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+
+    <div class="col wide">
+      <section class="card" id="peopleCard">
+        <div class="people-title">
+          <h2 id="peopleTitle">Members</h2>
+          <button class="secondary small" id="addBtn" type="button" hidden>Add a person</button>
+        </div>
+        <div class="banner" id="oldAttendings" hidden></div>
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+        <div id="addForm"></div>
+        <div id="people"><div class="loading">Loading…</div></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    var $ = UI.$, el = UI.el, clear = UI.clear, button = UI.button, plural = UI.plural, showStatus = UI.showStatus;
+    var state = { view: null, who: null, filter: 'all', q: '', editing: '', draft: null, busy: false };
+    var FILTERS = [['all', 'Everyone'], ['fellows', 'Fellows'], ['attendings', 'Attendings'], ['admins', 'Admins'], ['attention', 'Needs attention', true]];
+    var MAX_PHONES = 5;
+
+    /* ── server calls (one at a time) ── */
+    function call(fn, args, onOk, box) {
+      if (state.busy) return;
+      state.busy = true; UI.busy(true);
+      TimeOffApi.run(fn, args, function (res) { state.busy = false; UI.busy(false); onOk(res); }, function (err) {
+        state.busy = false; UI.busy(false);
+        if (err.code !== 'auth') showStatus(box || $('status'), 'error', 'Something went wrong', [err.message], true);
+      });
+    }
+    function load() { call('apiPortalGet', [], function (v) { state.view = v; render(); }); }
+
+    /* ── who's who ── */
+    function appLabel(key) { return (state.view.apps.filter(function (a) { return a.key === key; })[0] || { label: key }).label; }
+    function roleLabel(key) { return (state.view.roles.filter(function (r) { return r.key === key; })[0] || { label: key }).label; }
+    function isFellow(u) { return Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; }); }
+    function isAdmin(u) { return u.superAdmin || Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('admin') !== -1; }); }
+    function needsAttention(u) { return u.missing.length > 0 || u.inGroup === false && isFellow(u); }
+    function rolesText(u) {
+      if (u.superAdmin) return 'Super admin: can do everything on every site' + (isFellow(u) ? ' (also a fellow)' : '') + '.';
+      var parts = state.view.apps.map(function (a) {
+        var r = u.roles[a.key] || [];
+        return r.length ? a.label + ': ' + r.map(roleLabel).join(' + ') : '';
+      }).filter(Boolean);
+      return parts.length ? parts.join(' · ') : 'No access to the sites.';
+    }
+    function matches(u, f, q) {
+      if (f === 'fellows' && !isFellow(u)) return false;
+      if (f === 'attendings' && !u.attending) return false;
+      if (f === 'admins' && !isAdmin(u)) return false;
+      if (f === 'attention' && !needsAttention(u)) return false;
+      q = String(q || '').trim().toLowerCase();
+      if (!q) return true;
+      var digits = q.replace(/\D/g, '');
+      return [u.name, u.email, u.altEmail, u.jobTitle, u.gradYear].concat(u.aliases).some(function (x) { return String(x || '').toLowerCase().indexOf(q) !== -1; }) ||
+        (digits.length >= 3 && u.phones.some(function (p) { return p.replace(/\D/g, '').indexOf(digits) !== -1; }));
+    }
+
+    /* ── drawing ── */
+    function render() {
+      var v = state.view, admin = v.me.canEdit;
+      $('addBtn').hidden = !admin;
+      $('groupCard').hidden = !admin;
+      $('logCard').hidden = !admin;
+      if (admin) { renderGroup(); UI.fillLog($('log'), v.log); }
+      var old = $('oldAttendings'); clear(old);
+      old.hidden = !(admin && v.oldAttendings.length);
+      if (!old.hidden) {
+        old.appendChild(el('b', null, 'Attendings still come from the old list: ' + v.oldAttendings.join(', ') + '.'));
+        old.appendChild(el('span', null, ' Add each of them here and tick “Attending”. Once anyone is marked as an attending, only the people marked here are offered when adding a living donor case, so add them all.'));
+      }
+      renderFilters();
+      renderAddForm();
+      renderPeople();
+    }
+
+    function renderSites(who) {
+      var ul = $('sites'); clear(ul);
+      (who.apps || []).filter(function (a) { return a.key !== 'portal'; }).forEach(function (a) {
+        var li = el('li');
+        var main = el('a', 'site-link', a.label); main.href = a.url;
+        li.appendChild(main);
+        if (a.adminUrl) { var ad = el('a', 'site-admin', 'Admin'); ad.href = a.adminUrl; li.appendChild(ad); }
+        ul.appendChild(li);
+      });
+      if (!ul.firstChild) ul.appendChild(el('li', 'empty', 'You don’t have access to any of the sites yet.'));
+    }
+
+    function renderFilters() {
+      var box = $('filters'); clear(box);
+      var shown = FILTERS.filter(function (f) { return !f[2] || state.view.me.canEdit; });
+      box.style.setProperty('--n', shown.length > 4 ? 2 : shown.length);
+      shown.forEach(function (f) {
+        var count = state.view.users.filter(function (u) { return matches(u, f[0], ''); }).length;
+        var b = button('tab', f[1], function () { state.filter = f[0]; renderFilters(); renderPeople(); });
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', state.filter === f[0] ? 'true' : 'false');
+        b.appendChild(el('small', null, String(count)));
+        box.appendChild(b);
+      });
+    }
+
+    function renderGroup() {
+      var v = state.view, users = v.users;
+      var text = $('groupText'); clear(text);
+      text.appendChild(document.createTextNode('Fellows get the fellowship calendars through the Google Group ' + v.groupEmail +
+        '. Being in the group doesn’t give access to these sites (roles here do). Google doesn’t let the sites add or remove group members, so do that on the group’s page'));
+      if (v.groupMembersUrl) {
+        text.appendChild(document.createTextNode(': '));
+        var a = el('a', null, 'open the group’s members'); a.href = v.groupMembersUrl; a.target = '_blank'; a.rel = 'noopener';
+        text.appendChild(a);
+      }
+      text.appendChild(document.createTextNode('.'));
+      var inGroup = users.filter(function (u) { return u.inGroup === true; }).length;
+      var out = users.filter(function (u) { return u.inGroup === false; }).length;
+      var unknown = users.filter(function (u) { return u.inGroup == null; }).length;
+      $('groupCounts').textContent = inGroup + ' in the group · ' + out + ' not in it' + (unknown ? ' · ' + unknown + ' couldn’t be checked' : '');
+    }
+
+    function renderPeople() {
+      var v = state.view, box = $('people'); clear(box);
+      var shown = v.users.filter(function (u) { return matches(u, state.filter, state.q); });
+      $('peopleTitle').textContent = 'Members (' + v.users.length + ')';
+      var sections = [
+        ['Fellows', shown.filter(isFellow).sort(function (a, b) { return (a.gradYear || '9999') < (b.gradYear || '9999') ? -1 : (a.gradYear || '9999') > (b.gradYear || '9999') ? 1 : 0; })],
+        ['Attendings', shown.filter(function (u) { return !isFellow(u) && u.attending; })],
+        ['Everyone else', shown.filter(function (u) { return !isFellow(u) && !u.attending; })],
+      ];
+      sections.forEach(function (s) {
+        if (!s[1].length) return;
+        var sec = el('div', 'sec');
+        sec.appendChild(el('h3', null, s[0] + ' (' + s[1].length + ')'));
+        var ul = el('ul', 'people');
+        s[1].forEach(function (u) { ul.appendChild(state.editing === u.id ? formItem(u) : personItem(u)); });
+        sec.appendChild(ul);
+        box.appendChild(sec);
+      });
+      if (!shown.length) box.appendChild(el('p', 'empty', state.q ? 'Nobody matches “' + state.q + '”.' : 'Nobody here.'));
+    }
+
+    function personItem(u) {
+      var v = state.view, admin = v.me.canEdit;
+      var li = el('li', 'person');
+      var main = el('div', 'person-main');
+      var name = el('div', 'person-name');
+      name.appendChild(el('b', null, u.name));
+      if (u.id === v.me.id) name.appendChild(el('span', 'chip-you', 'You'));
+      if (u.superAdmin) name.appendChild(el('span', 'chip ok', u.owner ? 'Fellowship account' : 'Super admin'));
+      if (u.attending) name.appendChild(el('span', 'chip muted', 'Attending'));
+      if (admin && u.inGroup === true) name.appendChild(el('span', 'chip ok', 'In Google Group'));
+      if (admin && u.inGroup === false) name.appendChild(el('span', 'chip ' + (isFellow(u) ? 'bad' : 'muted'), 'Not in Google Group'));
+      if (admin && u.inGroup == null) name.appendChild(el('span', 'chip muted', 'Group: couldn’t check'));
+      main.appendChild(name);
+      var sub = isFellow(u) ? (u.gradYear ? 'Fellow, graduating ' + u.gradYear : 'Fellow') : (u.jobTitle || '');
+      if (sub) main.appendChild(el('div', 'person-sub', sub));
+      var contact = el('div', 'person-contact');
+      [u.email, u.altEmail].filter(Boolean).forEach(function (e) { var a = el('a', null, e); a.href = 'mailto:' + e; contact.appendChild(a); });
+      u.phones.forEach(function (p) { var a = el('a', null, p); a.href = 'tel:' + p.replace(/[^\d+]/g, ''); contact.appendChild(a); });
+      main.appendChild(contact);
+      main.appendChild(el('div', 'person-roles', rolesText(u)));
+      if (u.aliases.length) main.appendChild(el('div', 'person-sub', 'Also written on the calendars: ' + u.aliases.join(', ')));
+      if (admin && u.missing.length) main.appendChild(el('div', 'person-warn', 'Missing: ' + u.missing.join(', ') + '. Edit to fill it in.'));
+      li.appendChild(main);
+      if (admin) {
+        var actions = el('div', 'person-actions');
+        var lockedSuper = u.superAdmin && !v.me.superAdmin;
+        if (!lockedSuper) actions.appendChild(button('secondary small', 'Edit', function () { startEdit(u); }));
+        if (!u.owner && u.id !== v.me.id && !lockedSuper) {
+          actions.appendChild(UI.confirmButton('secondary small', 'Remove', 'Tap again to remove', function () {
+            call('apiPortalChange', [{ type: 'remove', id: u.id }], afterChange);
+          }));
+        }
+        if (actions.firstChild) li.appendChild(actions);
+      }
+      return li;
+    }
+
+    /* ── adding and editing ── */
+    function draftFor(u) {
+      var roles = {};
+      state.view.apps.forEach(function (a) { roles[a.key] = u ? (u.roles[a.key] || []).slice() : []; });
+      return {
+        id: u ? u.id : '', owner: !!(u && u.owner), email: u ? u.email : '', altEmail: u ? u.altEmail : '',
+        firstName: u ? u.firstName : '', lastName: u ? u.lastName : '', aliases: u ? u.aliases.join(', ') : '',
+        gradYear: u ? u.gradYear : '', jobTitle: u ? u.jobTitle : '', phones: u && u.phones.length ? u.phones.slice() : [''],
+        attending: !!(u && u.attending), superAdmin: !!(u && u.superAdmin), roles: roles,
+      };
+    }
+    function startEdit(u) {
+      state.editing = u.id; state.draft = draftFor(u); state.adding = false;
+      showStatus($('status'));
+      renderAddForm(); renderPeople();
+      var f = document.querySelector('.person-form input'); if (f) f.focus();
+    }
+    function stopEditing() { state.editing = ''; state.adding = false; state.draft = null; renderAddForm(); renderPeople(); }
+    function renderAddForm() {
+      var box = $('addForm'); clear(box);
+      if (!state.adding) return;
+      var wrap = el('div', 'add-wrap');
+      wrap.appendChild(el('h3', null, 'Add a person'));
+      wrap.appendChild(personForm());
+      box.appendChild(wrap);
+    }
+    function formItem() { var li = el('li', 'person editing'); li.appendChild(personForm()); return li; }
+
+    /** The role choices for one app: None, each role, and the combinations the server allows (e.g. Fellow + Admin). */
+    function roleChoices(app) {
+      var roles = state.view.roles.filter(function (r) { return app.roles.indexOf(r.key) !== -1; });
+      var out = [{ value: [], label: 'None' }];
+      roles.forEach(function (r) { out.push({ value: [r.key], label: r.label }); });
+      roles.forEach(function (r, i) {
+        roles.slice(i + 1).forEach(function (q) { if (r.with.indexOf(q.key) !== -1) out.push({ value: [r.key, q.key], label: r.label + ' + ' + q.label }); });
+      });
+      return out;
+    }
+    function sameRoles(a, b) { return a.slice().sort().join('|') === b.slice().sort().join('|'); }
+    /** Quick settings for the usual kinds of people. */
+    function presets() {
+      var all = function (pick) { var r = {}; state.view.apps.forEach(function (a) { r[a.key] = pick(a); }); return r; };
+      var has = function (a, k) { return a.roles.indexOf(k) !== -1; };
+      return [
+        ['Fellow', all(function (a) { return has(a, 'fellow') ? ['fellow'] : has(a, 'viewer') ? ['viewer'] : []; })],
+        ['Viewer everywhere', all(function (a) { return has(a, 'viewer') ? ['viewer'] : []; })],
+        ['Admin everywhere', all(function (a) { return has(a, 'admin') ? ['admin'] : []; })],
+        ['No access', all(function () { return []; })],
+      ];
+    }
+
+    function field(label, key, opts) {
+      opts = opts || {};
+      var d = state.draft, wrap = el('label', 'pf-field' + (opts.wide ? ' wide' : ''));
+      wrap.appendChild(el('span', 'label', label + (opts.optional ? '' : ' *')));
+      var i = el('input'); i.type = opts.type || 'text'; i.value = d[key] || ''; i.autocomplete = 'off';
+      if (opts.placeholder) i.placeholder = opts.placeholder;
+      if (opts.inputmode) i.inputMode = opts.inputmode;
+      if (opts.max) i.maxLength = opts.max;
+      if (opts.disabled) i.disabled = true;
+      i.addEventListener('input', function () { d[key] = i.value; });
+      wrap.appendChild(i);
+      if (opts.hint) wrap.appendChild(el('span', 'pf-hint', opts.hint));
+      return wrap;
+    }
+
+    function personForm() {
+      var v = state.view, d = state.draft, fellow = Object.keys(d.roles).some(function (k) { return d.roles[k].indexOf('fellow') !== -1; });
+      var form = el('div', 'person-form');
+      var grid = el('div', 'pf-grid');
+      grid.appendChild(field('First name', 'firstName', { max: 40 }));
+      grid.appendChild(field('Last name', 'lastName', { max: 40, hint: d.attending ? 'Living donor case titles use the last name.' : '' }));
+      grid.appendChild(field('Email they sign in with', 'email', { type: 'email', placeholder: 'name@gmail.com', disabled: d.owner, wide: true,
+        hint: d.owner ? 'The fellowship account’s email can’t be changed.' : 'The Google account they use for “Sign in with Google”.' }));
+      grid.appendChild(field('Second email', 'altEmail', { type: 'email', optional: true, placeholder: 'e.g. name@med.usc.edu', wide: true, hint: 'Optional. Can also sign in.' }));
+      form.appendChild(grid);
+      form.appendChild(rolesFieldset());
+      // Fellows (in any site) have a graduating year; everyone else a job title.
+      var more = el('div', 'pf-grid pf-more-fields');
+      if (fellow) more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027' }));
+      else more.appendChild(field('Job title', 'jobTitle', { max: 80, placeholder: 'e.g. Transplant surgeon', wide: true }));
+      more.appendChild(field('Other spellings on the calendars', 'aliases', { optional: true, wide: true, placeholder: 'e.g. Ellie Heidorn',
+        hint: 'Optional, separated by commas. Calendar events titled with these count as this person.' }));
+      form.appendChild(more);
+
+      // Phones
+      var phones = el('div', 'pf-phones');
+      phones.appendChild(el('span', 'label', 'Phone numbers'));
+      d.phones.forEach(function (p, i) {
+        var row = el('div', 'pf-phone');
+        var input = el('input'); input.type = 'tel'; input.value = p; input.autocomplete = 'off'; input.placeholder = 'e.g. (323) 555-0123';
+        input.setAttribute('aria-label', 'Phone number ' + (i + 1));
+        input.addEventListener('input', function () { d.phones[i] = input.value; });
+        row.appendChild(input);
+        if (d.phones.length > 1) row.appendChild(button('secondary small', 'Remove', function () { d.phones.splice(i, 1); rerenderForm(); }));
+        phones.appendChild(row);
+      });
+      if (d.phones.length < MAX_PHONES) phones.appendChild(button('linkbtn pf-more', '+ Another number', function () { d.phones.push(''); rerenderForm(); }));
+      form.appendChild(phones);
+
+      // Attending, super admin
+      form.appendChild(checkRow('attending', 'Attending', 'Offered (by last name) when someone adds a living donor case.'));
+      if (v.me.superAdmin && !d.owner) form.appendChild(checkRow('superAdmin', 'Super admin', 'Can do everything on every site, including making other super admins. Their roles above only matter for being a fellow.'));
+      else if (d.superAdmin) form.appendChild(el('p', 'pf-hint', d.owner ? 'The fellowship account is always a super admin.' : 'Super admin (only a super admin can change this).'));
+
+      var actions = el('div', 'pf-actions');
+      actions.appendChild(button('primary small', d.id ? 'Save changes' : 'Add ' + (d.firstName ? d.firstName : 'person'), save_));
+      actions.appendChild(button('secondary small', 'Cancel', function () { stopEditing(); }));
+      form.appendChild(actions);
+      var st = el('div', 'status'); st.id = 'formStatus'; st.setAttribute('role', 'status'); st.setAttribute('aria-live', 'polite');
+      form.appendChild(st);
+      return form;
+    }
+
+    /** The roles in each site, with quick settings for the usual kinds of people. */
+    function rolesFieldset() {
+      var v = state.view, d = state.draft;
+      var roles = el('fieldset', 'pf-roles');
+      roles.appendChild(el('legend', null, 'What they can do'));
+      var quick = el('div', 'pf-presets');
+      quick.appendChild(el('span', 'pf-hint', 'Quick set:'));
+      presets().forEach(function (p) {
+        quick.appendChild(button('toggle', p[0], function () { Object.keys(p[1]).forEach(function (k) { d.roles[k] = p[1][k].slice(); }); rerenderForm(); }));
+      });
+      roles.appendChild(quick);
+      v.apps.forEach(function (a) {
+        var row = el('div', 'pf-app');
+        row.appendChild(el('span', 'pf-app-name', a.label));
+        var choices = roleChoices(a);
+        var keys = el('div', 'keys rolekeys' + (choices.length > 3 ? ' many' : '')); keys.style.setProperty('--n', choices.length);
+        keys.setAttribute('role', 'radiogroup'); keys.setAttribute('aria-label', a.label);
+        choices.forEach(function (c) {
+          var b = button('tab', c.label, function () { d.roles[a.key] = c.value.slice(); rerenderForm(); });
+          b.setAttribute('role', 'radio');
+          b.setAttribute('aria-checked', sameRoles(c.value, d.roles[a.key] || []) ? 'true' : 'false');
+          keys.appendChild(b);
+        });
+        row.appendChild(keys);
+        roles.appendChild(row);
+      });
+      roles.appendChild(el('p', 'pf-hint', 'Viewer: can look. Fellow: their own time off, living donor cases, and counted in the schedule and cross-cover. Admin: can change things for everyone on that site.'));
+      return roles;
+    }
+    function checkRow(key, title, text) {
+      var d = state.draft, row = el('label', 'override-toggle pf-check');
+      var box = el('input'); box.type = 'checkbox'; box.checked = !!d[key];
+      box.addEventListener('change', function () { d[key] = box.checked; rerenderForm(); });
+      var t = el('span'); t.appendChild(el('b', null, title)); t.appendChild(el('br')); t.appendChild(document.createTextNode(text));
+      row.appendChild(box); row.appendChild(t);
+      return row;
+    }
+    /** Re-draws the open form from the draft (after a choice that changes which fields show). */
+    function rerenderForm() {
+      var y = window.scrollY;
+      if (state.adding) renderAddForm(); else renderPeople();
+      window.scrollTo(0, y);
+    }
+
+    function save_() {
+      var d = state.draft, fellow = Object.keys(d.roles).some(function (k) { return d.roles[k].indexOf('fellow') !== -1; });
+      var user = {
+        email: d.email, altEmail: d.altEmail, firstName: d.firstName, lastName: d.lastName, aliases: d.aliases,
+        // Fellows have a graduating year; everyone else a job title.
+        gradYear: fellow ? d.gradYear : '', jobTitle: fellow ? '' : d.jobTitle,
+        phones: d.phones.map(function (p) { return p.trim(); }).filter(Boolean),
+        attending: d.attending, superAdmin: d.superAdmin, roles: d.roles,
+      };
+      call('apiPortalChange', [d.id ? { type: 'edit', id: d.id, user: user } : { type: 'add', user: user }], function (res) {
+        if (!res.ok) { showStatus($('formStatus'), 'error', 'Not saved', res.errors, true); return; }
+        afterChange(res);
+      }, $('formStatus'));
+    }
+    function afterChange(res) {
+      if (!res.ok) { showStatus($('status'), 'error', 'Not changed', res.errors, true); return; }
+      state.view = res.view;
+      state.editing = ''; state.adding = false; state.draft = null;
+      render();
+      showStatus($('status'), 'ok', 'Saved', res.lines, true);
+    }
+
+    /* ── wiring ── */
+    $('search').addEventListener('input', function (e) { state.q = e.target.value; if (state.view) renderPeople(); });
+    $('addBtn').addEventListener('click', function () {
+      state.adding = true; state.editing = ''; state.draft = draftFor(null);
+      showStatus($('status'));
+      renderAddForm(); renderPeople();
+      var f = document.querySelector('#addForm input'); if (f) f.focus();
+    });
+    $('recheck').addEventListener('click', function () {
+      call('apiPortalRefreshGroup', [], function (v) { state.view = v; render(); showStatus($('groupStatus'), 'ok', 'Checked with Google just now', []); }, $('groupStatus'));
+    });
+    TimeOffApi.start({ app: 'portal', need: 'viewer', onReady: function (who) { state.who = who; renderSites(who); load(); } });
+  })();
+  </script>
+</body>
+</html>
