@@ -40,14 +40,14 @@
         <div class="keys filters" role="radiogroup" aria-label="Show" id="filters"></div>
       </section>
 
-      <section class="card" id="groupCard" hidden>
-        <h2>Google Group</h2>
-        <p class="hint" id="groupText"></p>
-        <p class="group-counts" id="groupCounts"></p>
+      <section class="card" id="sharingCard" hidden>
+        <h2>Calendar sharing</h2>
+        <p class="hint">Everyone with the fellow role can see the fellowship calendars (view only). They’re added when they become fellows and removed when they stop, or when they’re removed here. People the calendars were shared with by hand are left alone.</p>
+        <ul class="sharing" id="sharing"></ul>
         <div class="toolbar one">
-          <button class="secondary" id="recheck" type="button">Check again</button>
+          <button class="secondary" id="checkSharing" type="button">Check calendar sharing</button>
         </div>
-        <div class="status" id="groupStatus" role="status" aria-live="polite"></div>
+        <div class="status" id="sharingStatus" role="status" aria-live="polite"></div>
       </section>
 
       <section class="card" id="logCard" hidden>
@@ -64,6 +64,7 @@
         </div>
         <div class="banner" id="oldAttendings" hidden></div>
         <div class="status" id="status" role="status" aria-live="polite"></div>
+        <div class="signups" id="signups" hidden></div>
         <div id="addForm"></div>
         <div id="people"><div class="loading">Loading…</div></div>
       </section>
@@ -93,7 +94,7 @@
     function roleLabel(key) { return (state.view.roles.filter(function (r) { return r.key === key; })[0] || { label: key }).label; }
     function isFellow(u) { return Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; }); }
     function isAdmin(u) { return u.superAdmin || Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('admin') !== -1; }); }
-    function needsAttention(u) { return u.missing.length > 0 || u.inGroup === false && isFellow(u); }
+    function needsAttention(u) { return u.missing.length > 0; }
     function rolesText(u) {
       if (u.superAdmin) return 'Super admin: can do everything on every site' + (isFellow(u) ? ' (also a fellow)' : '') + '.';
       var parts = state.view.apps.map(function (a) {
@@ -118,9 +119,10 @@
     function render() {
       var v = state.view, admin = v.me.canEdit;
       $('addBtn').hidden = !admin;
-      $('groupCard').hidden = !admin;
+      $('sharingCard').hidden = !admin;
       $('logCard').hidden = !admin;
-      if (admin) { renderGroup(); UI.fillLog($('log'), v.log); }
+      if (admin) { renderSharing(); UI.fillLog($('log'), v.log); }
+      renderSignups();
       var old = $('oldAttendings'); clear(old);
       old.hidden = !(admin && v.oldAttendings.length);
       if (!old.hidden) {
@@ -158,21 +160,59 @@
       });
     }
 
-    function renderGroup() {
-      var v = state.view, users = v.users;
-      var text = $('groupText'); clear(text);
-      text.appendChild(document.createTextNode('Fellows get the fellowship calendars through the Google Group ' + v.groupEmail +
-        '. Being in the group doesn’t give access to these sites (roles here do). Google doesn’t let the sites add or remove group members, so do that on the group’s page'));
-      if (v.groupMembersUrl) {
-        text.appendChild(document.createTextNode(': '));
-        var a = el('a', null, 'open the group’s members'); a.href = v.groupMembersUrl; a.target = '_blank'; a.rel = 'noopener';
-        text.appendChild(a);
-      }
-      text.appendChild(document.createTextNode('.'));
-      var inGroup = users.filter(function (u) { return u.inGroup === true; }).length;
-      var out = users.filter(function (u) { return u.inGroup === false; }).length;
-      var unknown = users.filter(function (u) { return u.inGroup == null; }).length;
-      $('groupCounts').textContent = inGroup + ' in the group · ' + out + ' not in it' + (unknown ? ' · ' + unknown + ' couldn’t be checked' : '');
+    /* The last check of the calendars' sharing (it runs after every change here, and with the button). */
+    function renderSharing() {
+      var sh = state.view.sharing, ul = $('sharing'); clear(ul);
+      if (!sh) { ul.appendChild(el('li', 'empty', 'Not checked yet. Press “Check calendar sharing” to share the calendars with every fellow.')); return; }
+      sh.calendars.forEach(function (c) {
+        var li = el('li');
+        li.appendChild(el('b', null, c.label));
+        var ok = !c.error && !c.missing.length && !c.extra.length && !c.group;
+        li.appendChild(el('span', 'chip ' + (ok ? 'ok' : 'bad'), c.error ? 'Can’t check' : ok ? 'Up to date' : 'Needs a check'));
+        var bits = [];
+        if (c.error) bits.push(c.error);
+        else {
+          bits.push(c.shared + ' of ' + sh.wanted + ' fellows can see it.');
+          if (c.missing.length) bits.push('Not yet shared with ' + c.missing.join(', ') + '.');
+          if (c.extra.length) bits.push('Still shared with ex-fellows: ' + c.extra.join(', ') + '.');
+          if (c.group) bits.push('Still shared with the old Google Group.');
+        }
+        li.appendChild(el('span', 'sharing-note', bits.join(' ')));
+        ul.appendChild(li);
+      });
+      ul.appendChild(el('li', 'sharing-at', 'Checked ' + sh.at + '.'));
+    }
+
+    /* Sign-ups waiting for approval: approve by adding the person (the form starts filled in), or decline. */
+    function renderSignups() {
+      var v = state.view, box = $('signups'); clear(box);
+      box.hidden = !(v.me.canEdit && v.signups.length);
+      if (box.hidden) return;
+      box.appendChild(el('h3', null, 'Waiting for approval (' + v.signups.length + ')'));
+      var ul = el('ul', 'people');
+      v.signups.forEach(function (s) {
+        var li = el('li', 'person pending');
+        var main = el('div', 'person-main');
+        var name = el('div', 'person-name'); name.appendChild(el('b', null, s.firstName + ' ' + s.lastName));
+        name.appendChild(el('span', 'chip muted', 'Signed up ' + s.at));
+        main.appendChild(name);
+        main.appendChild(el('div', 'person-sub', s.kind === 'fellow' ? 'Fellow, graduating ' + s.gradYear : s.jobTitle));
+        var contact = el('div', 'person-contact');
+        var a = el('a', null, s.email); a.href = 'mailto:' + s.email; contact.appendChild(a);
+        if (s.phone) { var t = el('a', null, s.phone); t.href = 'tel:' + s.phone.replace(/[^\d+]/g, ''); contact.appendChild(t); }
+        main.appendChild(contact);
+        if (s.note) main.appendChild(el('div', 'person-roles', '“' + s.note + '”'));
+        li.appendChild(main);
+        var actions = el('div', 'person-actions');
+        actions.appendChild(button('secondary small strong', 'Approve…', function () { startAdd(s); }));
+        actions.appendChild(UI.confirmButton('secondary small', 'Decline', 'Tap again to decline', function () {
+          call('apiPortalChange', [{ type: 'decline', signupId: s.id }], afterChange);
+        }));
+        li.appendChild(actions);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      box.appendChild(el('p', 'hint small', 'Approve opens “Add a person” filled in from the sign-up: choose their roles and save. New people sign up at portal.usctransplant.life/signup.html.'));
     }
 
     function renderPeople() {
@@ -205,9 +245,6 @@
       if (u.id === v.me.id) name.appendChild(el('span', 'chip-you', 'You'));
       if (u.superAdmin) name.appendChild(el('span', 'chip ok', u.owner ? 'Fellowship account' : 'Super admin'));
       if (u.attending) name.appendChild(el('span', 'chip muted', 'Attending'));
-      if (admin && u.inGroup === true) name.appendChild(el('span', 'chip ok', 'In Google Group'));
-      if (admin && u.inGroup === false) name.appendChild(el('span', 'chip ' + (isFellow(u) ? 'bad' : 'muted'), 'Not in Google Group'));
-      if (admin && u.inGroup == null) name.appendChild(el('span', 'chip muted', 'Group: couldn’t check'));
       main.appendChild(name);
       var sub = isFellow(u) ? (u.gradYear ? 'Fellow, graduating ' + u.gradYear : 'Fellow') : (u.jobTitle || '');
       if (sub) main.appendChild(el('div', 'person-sub', sub));
@@ -243,6 +280,20 @@
         gradYear: u ? u.gradYear : '', jobTitle: u ? u.jobTitle : '', phones: u && u.phones.length ? u.phones.slice() : [''],
         attending: !!(u && u.attending), superAdmin: !!(u && u.superAdmin), roles: roles,
       };
+    }
+    /** Opens "Add a person"; from a sign-up, filled in with its details and the usual roles for a fellow or a viewer. */
+    function startAdd(signup) {
+      state.adding = true; state.editing = ''; state.draft = draftFor(null);
+      if (signup) {
+        var d = state.draft, preset = presets().filter(function (p) { return p[0] === (signup.kind === 'fellow' ? 'Fellow' : 'Viewer everywhere'); })[0];
+        d.email = signup.email; d.firstName = signup.firstName; d.lastName = signup.lastName;
+        d.gradYear = signup.gradYear || ''; d.jobTitle = signup.jobTitle || ''; d.phones = signup.phone ? [signup.phone] : [''];
+        if (preset) Object.keys(preset[1]).forEach(function (k) { d.roles[k] = preset[1][k].slice(); });
+      }
+      showStatus($('status'));
+      renderAddForm(); renderPeople();
+      var wrap = document.querySelector('#addForm'); if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var f = document.querySelector('#addForm input'); if (f) f.focus();
     }
     function startEdit(u) {
       state.editing = u.id; state.draft = draftFor(u); state.adding = false;
@@ -373,7 +424,7 @@
         row.appendChild(keys);
         roles.appendChild(row);
       });
-      roles.appendChild(el('p', 'pf-hint', 'Viewer: can look. Fellow: their own time off, living donor cases, and counted in the schedule and cross-cover. Admin: can change things for everyone on that site.'));
+      roles.appendChild(el('p', 'pf-hint', 'Viewer: can look. Fellow: their own time off, living donor cases, and counted in the schedule and cross-cover; fellows can also see the fellowship calendars. Admin: can change things for everyone on that site.'));
       return roles;
     }
     function checkRow(key, title, text) {
@@ -416,13 +467,13 @@
     /* ── wiring ── */
     $('search').addEventListener('input', function (e) { state.q = e.target.value; if (state.view) renderPeople(); });
     $('addBtn').addEventListener('click', function () {
-      state.adding = true; state.editing = ''; state.draft = draftFor(null);
-      showStatus($('status'));
-      renderAddForm(); renderPeople();
-      var f = document.querySelector('#addForm input'); if (f) f.focus();
+      startAdd(null);
     });
-    $('recheck').addEventListener('click', function () {
-      call('apiPortalRefreshGroup', [], function (v) { state.view = v; render(); showStatus($('groupStatus'), 'ok', 'Checked with Google just now', []); }, $('groupStatus'));
+    $('checkSharing').addEventListener('click', function () {
+      call('apiPortalCheckSharing', [], function (res) {
+        state.view = res.view; render();
+        showStatus($('sharingStatus'), res.problems.length ? 'error' : 'ok', res.problems.length ? 'Some sharing couldn’t be changed' : 'Done', res.lines.concat(res.problems));
+      }, $('sharingStatus'));
     });
     TimeOffApi.start({ app: 'portal', need: 'viewer', onReady: function (who) { state.who = who; renderSites(who); load(); } });
   })();

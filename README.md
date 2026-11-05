@@ -6,9 +6,12 @@ The member list for the USC Transplant Surgery Fellowship's sites: **https://por
   and what each person can do on each site — with links to the sites they can use.
 - **Admins** add, edit and remove people and set their role on each site (time off, call schedule, portal): none,
   viewer, fellow, admin, or fellow + admin. They mark **attendings** (offered by last name when adding a living donor
-  case), see who is in the Google Group, and see the recent changes. Only a super admin can make or change super admins.
+  case), approve or decline **sign-ups**, check that the calendars are shared with every fellow, and see the recent
+  changes. Only a super admin can make or change super admins.
+- **New people** sign up at `/signup.html`: they sign in (with Google, or a code emailed to any address) and say who
+  they are; an admin approves them. The page also explains how to make a Google account with a non-Gmail address.
 
-It also holds `session.html`, which keeps the Google sign-in for all three sites: sign in on any of them and you are
+It also holds `session.html`, which keeps the sign-in for all three sites: sign in on any of them and you are
 signed in on the others; Sign out on any of them signs out of all.
 
 ## How it fits together
@@ -28,6 +31,7 @@ pages — no personal data.
 | File | What it is |
 |---|---|
 | `index.html` | The portal |
+| `signup.html` | Signing up (and how to make a Google account with any email address) |
 | `session.html` | The shared sign-in (opened invisibly by every page of the three sites) |
 | `assets/portal.css` | Styles used only by this site |
 | `assets/styles.css`, `assets/ui.js`, `assets/api.js`, `assets/fonts/` | **Shared with the time-off and schedule sites** — keep identical in all three repositories (a GitHub check compares them) |

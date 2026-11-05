@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fellowship Sign-up</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23990000'/%3E%3Crect x='5' y='7' width='22' height='13' rx='3' fill='%23c3ce9c'/%3E%3Cpath d='M8 11h2v2H8zm3 0h2v2h-2zm3 0h2v2h-2zm-6 4h2v2H8zm3 0h2v2h-2z' fill='%23232c17'/%3E%3Crect x='9' y='24' width='14' height='3' rx='1.5' fill='%23ffcc00'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#990000">
+  <link rel="preload" href="assets/fonts/doto.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/portal.css">
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/api.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <div class="lcd">
+        <div class="eyebrow">USC Transplant Surgery Fellowship</div>
+        <h1>Sign up</h1>
+      </div>
+      <div class="who" id="who"></div>
+    </div>
+  </header>
+
+  <main class="page signup">
+    <section class="card" id="howCard">
+      <h2>How signing up works</h2>
+      <ol class="steps">
+        <li><b>Sign in</b> below, either with Google or with a code we email you. Any email address works.</li>
+        <li><b>Tell us who you are.</b> Use the same email the fellowship knows you by.</li>
+        <li><b>An admin approves you.</b> If an admin has already added you, you’re all set straight away.</li>
+      </ol>
+      <details class="google-help">
+        <summary>Want “Sign in with Google” with a USC, Keck or other non-Gmail address?</summary>
+        <p>You can make a Google account that uses your current email, without getting Gmail:</p>
+        <ol>
+          <li>Open <a href="https://accounts.google.com/signup" target="_blank" rel="noopener">accounts.google.com/signup</a>. If it asks, choose <b>Create account → For my personal use</b>.</li>
+          <li>Enter your name and the other details it asks for.</li>
+          <li>When it offers a Gmail address, choose <b>Use your existing email</b> and type your current email.</li>
+          <li>Enter the code Google emails you, then choose a password and finish.</li>
+          <li>Come back here and choose <b>Sign in with Google</b> with that account.</li>
+        </ol>
+        <p class="hint small">You don’t need a Google account to use the sites (the emailed code works too). You do need one to see the fellowship calendars in Google Calendar.</p>
+      </details>
+    </section>
+
+    <div id="auth"><section class="card"><div class="loading">Loading…</div></section></div>
+
+    <div id="app" hidden>
+      <section class="card" id="resultCard" hidden>
+        <h2 id="resultTitle"></h2>
+        <p id="resultText"></p>
+        <ul class="sites" id="sites"></ul>
+      </section>
+
+      <section class="card" id="formCard" hidden>
+        <h2>Tell us who you are</h2>
+        <p class="hint">Signed in as <b id="formEmail"></b>. An admin will add you with this email.</p>
+        <div class="pf-grid">
+          <label class="pf-field"><span class="label">First name *</span><input id="firstName" type="text" autocomplete="given-name" maxlength="40"></label>
+          <label class="pf-field"><span class="label">Last name *</span><input id="lastName" type="text" autocomplete="family-name" maxlength="40"></label>
+        </div>
+        <span class="label" style="margin-top:12px">I am</span>
+        <div class="keys" style="--n:2" role="radiogroup" aria-label="I am" id="kind">
+          <button class="tab" type="button" role="radio" data-kind="fellow" aria-checked="false">A fellow</button>
+          <button class="tab" type="button" role="radio" data-kind="other" aria-checked="false">Someone else</button>
+        </div>
+        <label class="pf-field" id="gradRow" hidden><span class="label">Year you graduate from the fellowship *</span><input id="gradYear" type="text" inputmode="numeric" maxlength="4" placeholder="e.g. 2027"></label>
+        <label class="pf-field" id="jobRow" hidden><span class="label">Job title *</span><input id="jobTitle" type="text" maxlength="80" placeholder="e.g. Transplant surgeon, coordinator"></label>
+        <label class="pf-field"><span class="label">Phone number</span><input id="phone" type="tel" autocomplete="tel" placeholder="Optional"></label>
+        <label class="pf-field"><span class="label">Anything the admins should know</span><textarea id="note" maxlength="500" placeholder="Optional, e.g. starting in July"></textarea></label>
+        <button class="primary" id="submit" type="button">Send for approval</button>
+        <div class="status" id="status" role="status" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    var $ = UI.$, el = UI.el, clear = UI.clear, showStatus = UI.showStatus;
+    var state = { kind: '', who: null };
+
+    function show(title, text, apps) {
+      $('formCard').hidden = true;
+      $('resultCard').hidden = false;
+      $('resultTitle').textContent = title;
+      $('resultText').textContent = text;
+      var ul = $('sites'); clear(ul);
+      (apps || []).forEach(function (a) { var li = el('li'), x = el('a', 'site-link', a.label); x.href = a.url; li.appendChild(x); ul.appendChild(li); });
+    }
+    function setKind(k) {
+      state.kind = k;
+      document.querySelectorAll('#kind .tab').forEach(function (b) { b.setAttribute('aria-checked', b.dataset.kind === k ? 'true' : 'false'); });
+      $('gradRow').hidden = k !== 'fellow';
+      $('jobRow').hidden = k !== 'other';
+    }
+    function ready(who) {
+      state.who = who;
+      $('howCard').hidden = true;
+      if (who.status === 'member') { show('You’re all set', who.email + ' is on the member list. Open the sites:', who.apps); return; }
+      if (who.status === 'pending') { show('Waiting for approval', who.message); return; }
+      $('formCard').hidden = false;
+      $('formEmail').textContent = who.email;
+      $('firstName').focus();
+    }
+    function submit() {
+      if (!state.kind) { showStatus($('status'), 'error', 'Choose whether you’re a fellow or someone else.', []); return; }
+      UI.busy(true); $('submit').disabled = true;
+      TimeOffApi.run('apiSignUp', [{ firstName: $('firstName').value, lastName: $('lastName').value, kind: state.kind, gradYear: $('gradYear').value,
+        jobTitle: $('jobTitle').value, phone: $('phone').value, note: $('note').value }], function (res) {
+        UI.busy(false); $('submit').disabled = false;
+        if (!res.ok) { showStatus($('status'), 'error', 'Not sent yet', res.errors, true); return; }
+        show(res.status === 'member' ? 'You’re all set' : 'Sent for approval', res.message, res.status === 'member' ? (state.who.apps || []) : []);
+      }, function (err) {
+        UI.busy(false); $('submit').disabled = false;
+        if (err.code !== 'auth') showStatus($('status'), 'error', 'Not sent', [err.message], true);
+      });
+    }
+    document.querySelectorAll('#kind .tab').forEach(function (b) { b.addEventListener('click', function () { setKind(b.dataset.kind); }); });
+    $('submit').addEventListener('click', submit);
+    TimeOffApi.start({ app: 'portal', need: 'any', onReady: ready });
+  })();
+  </script>
+</body>
+</html>
