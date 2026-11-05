@@ -7,7 +7,7 @@
 @media (max-width: 959px) {
   main.portal:not([hidden]) { display: flex; flex-direction: column; }
   main.portal > .col { display: contents; }
-  #findCard { order: 1; } #peopleCard { order: 2; } #sitesCard { order: 3; } #groupCard { order: 4; } #logCard { order: 5; }
+  #findCard { order: 1; } #peopleCard { order: 2; } #sitesCard { order: 3; } #sharingCard { order: 4; } #logCard { order: 5; }
 }
 
 /* ── your sites ── */
@@ -44,7 +44,6 @@
 .people-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px dotted var(--line-strong); }
 .people-title h2 { margin: 0; padding: 0; border: 0; }
 .people-title .secondary { flex: 0 0 auto; }
-.banner { background: var(--gold-soft); border: 1.5px solid var(--gold-edge); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-bottom: 12px; }
 #status { margin: 0 0 12px; }
 .sec { margin-top: 18px; }
 .sec:first-child { margin-top: 0; }
@@ -61,6 +60,7 @@
 .person-contact a { overflow-wrap: anywhere; text-decoration: none; }
 .person-contact a:hover { text-decoration: underline; }
 .person-roles { font-size: 14px; margin-top: 4px; }
+.person-roles .role-line { line-height: 1.45; }
 .person-warn { font-size: 14px; font-weight: 700; color: var(--err); margin-top: 4px; }
 .person-actions { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
 .person.editing { display: block; }
@@ -78,6 +78,9 @@
 .pf-field.wide { grid-column: 1 / -1; }
 .pf-field input:disabled { opacity: .7; cursor: not-allowed; }
 .pf-hint { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+.pf-alt { margin-top: 12px; }
+.pf-alt .pf-grid { margin-top: 4px; }
+.pf-sublabel { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 3px; }
 .pf-phones { margin-top: 12px; }
 .pf-phone { display: flex; gap: 8px; margin-bottom: 8px; }
 .pf-phone input { flex: 1 1 auto; min-width: 0; }
@@ -106,8 +109,6 @@ input[type="tel"] {
 .pf-actions .primary.small { width: auto; margin: 0; padding: 10px 18px 12px; }
 @media (max-width: 599px) {
   .pf-grid { grid-template-columns: 1fr; }
-  /* five role choices don't fit in a row on a phone: three, then two */
-  .rolekeys.many { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ── the sign-up page ── */
