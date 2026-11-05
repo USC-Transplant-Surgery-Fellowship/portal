@@ -42,7 +42,7 @@
 
       <section class="card" id="sharingCard" hidden>
         <h2>Calendar sharing</h2>
-        <p class="hint">Everyone with the fellow role can see the fellowship calendars (view only). They’re added when they become fellows and removed when they stop, or when they’re removed here. People the calendars were shared with by hand are left alone.</p>
+        <p class="hint">Share view-only Google calendars with fellows.</p>
         <ul class="sharing" id="sharing"></ul>
         <div class="toolbar one">
           <button class="secondary" id="checkSharing" type="button">Check calendar sharing</button>
@@ -52,7 +52,7 @@
 
       <section class="card" id="logCard" hidden>
         <h2>Recent changes</h2>
-        <ul class="log" id="log"></ul>
+        <ul class="log" id="log" tabindex="0" aria-label="Recent changes"></ul>
       </section>
     </div>
 
@@ -62,7 +62,6 @@
           <h2 id="peopleTitle">Members</h2>
           <button class="secondary small" id="addBtn" type="button" hidden>Add a person</button>
         </div>
-        <div class="banner" id="oldAttendings" hidden></div>
         <div class="status" id="status" role="status" aria-live="polite"></div>
         <div class="signups" id="signups" hidden></div>
         <div id="addForm"></div>
@@ -95,13 +94,25 @@
     function isFellow(u) { return Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; }); }
     function isAdmin(u) { return u.superAdmin || Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('admin') !== -1; }); }
     function needsAttention(u) { return u.missing.length > 0; }
-    function rolesText(u) {
-      if (u.superAdmin) return 'Super admin: can do everything on every site' + (isFellow(u) ? ' (also a fellow)' : '') + '.';
-      var parts = state.view.apps.map(function (a) {
+    /** Each site on its own line: "Time off: Fellow, Admin". */
+    function rolesBox(u) {
+      var box = el('div', 'person-roles');
+      if (u.superAdmin) { box.appendChild(document.createTextNode('Super admin: can do everything on every site' + (isFellow(u) ? ' (also a fellow)' : '') + '.')); return box; }
+      state.view.apps.forEach(function (a) {
         var r = u.roles[a.key] || [];
-        return r.length ? a.label + ': ' + r.map(roleLabel).join(' + ') : '';
-      }).filter(Boolean);
-      return parts.length ? parts.join(' · ') : 'No access to the sites.';
+        if (!r.length) return;
+        var line = el('div', 'role-line');
+        line.appendChild(el('b', null, a.label + ':'));
+        line.appendChild(document.createTextNode(' ' + r.map(roleLabel).join(', ')));
+        box.appendChild(line);
+      });
+      return box;
+    }
+    /** "Elise (Ellie) Heidorn": alternate first names after the first name, alternate last names after the last. */
+    function fullName(u) {
+      if (!u.firstName && !u.lastName) return u.name;
+      var alt = function (list) { return list && list.length ? ' (' + list.join(', ') + ')' : ''; };
+      return (u.firstName + alt(u.altFirstNames) + ' ' + u.lastName + alt(u.altLastNames)).trim();
     }
     function matches(u, f, q) {
       if (f === 'fellows' && !isFellow(u)) return false;
@@ -111,7 +122,7 @@
       q = String(q || '').trim().toLowerCase();
       if (!q) return true;
       var digits = q.replace(/\D/g, '');
-      return [u.name, u.email, u.altEmail, u.jobTitle, u.gradYear].concat(u.aliases).some(function (x) { return String(x || '').toLowerCase().indexOf(q) !== -1; }) ||
+      return [u.name, u.email, u.altEmail, u.jobTitle, u.gradYear].concat(u.altFirstNames || [], u.altLastNames || []).some(function (x) { return String(x || '').toLowerCase().indexOf(q) !== -1; }) ||
         (digits.length >= 3 && u.phones.some(function (p) { return p.replace(/\D/g, '').indexOf(digits) !== -1; }));
     }
 
@@ -123,12 +134,6 @@
       $('logCard').hidden = !admin;
       if (admin) { renderSharing(); UI.fillLog($('log'), v.log); }
       renderSignups();
-      var old = $('oldAttendings'); clear(old);
-      old.hidden = !(admin && v.oldAttendings.length);
-      if (!old.hidden) {
-        old.appendChild(el('b', null, 'Attendings still come from the old list: ' + v.oldAttendings.join(', ') + '.'));
-        old.appendChild(el('span', null, ' Add each of them here and tick “Attending”. Once anyone is marked as an attending, only the people marked here are offered when adding a living donor case, so add them all.'));
-      }
       renderFilters();
       renderAddForm();
       renderPeople();
@@ -167,7 +172,7 @@
       sh.calendars.forEach(function (c) {
         var li = el('li');
         li.appendChild(el('b', null, c.label));
-        var ok = !c.error && !c.missing.length && !c.extra.length && !c.group;
+        var ok = !c.error && !c.missing.length && !c.extra.length;
         li.appendChild(el('span', 'chip ' + (ok ? 'ok' : 'bad'), c.error ? 'Can’t check' : ok ? 'Up to date' : 'Needs a check'));
         var bits = [];
         if (c.error) bits.push(c.error);
@@ -175,7 +180,6 @@
           bits.push(c.shared + ' of ' + sh.wanted + ' fellows can see it.');
           if (c.missing.length) bits.push('Not yet shared with ' + c.missing.join(', ') + '.');
           if (c.extra.length) bits.push('Still shared with ex-fellows: ' + c.extra.join(', ') + '.');
-          if (c.group) bits.push('Still shared with the old Google Group.');
         }
         li.appendChild(el('span', 'sharing-note', bits.join(' ')));
         ul.appendChild(li);
@@ -241,10 +245,11 @@
       var li = el('li', 'person');
       var main = el('div', 'person-main');
       var name = el('div', 'person-name');
-      name.appendChild(el('b', null, u.name));
+      name.appendChild(el('b', null, fullName(u)));
       if (u.id === v.me.id) name.appendChild(el('span', 'chip-you', 'You'));
       if (u.superAdmin) name.appendChild(el('span', 'chip ok', u.owner ? 'Fellowship account' : 'Super admin'));
       if (u.attending) name.appendChild(el('span', 'chip muted', 'Attending'));
+      if (u.hpbFellow) name.appendChild(el('span', 'chip muted', 'HPB fellow'));
       main.appendChild(name);
       var sub = isFellow(u) ? (u.gradYear ? 'Fellow, graduating ' + u.gradYear : 'Fellow') : (u.jobTitle || '');
       if (sub) main.appendChild(el('div', 'person-sub', sub));
@@ -252,10 +257,15 @@
       [u.email, u.altEmail].filter(Boolean).forEach(function (e) { var a = el('a', null, e); a.href = 'mailto:' + e; contact.appendChild(a); });
       u.phones.forEach(function (p) { var a = el('a', null, p); a.href = 'tel:' + p.replace(/[^\d+]/g, ''); contact.appendChild(a); });
       main.appendChild(contact);
-      main.appendChild(el('div', 'person-roles', rolesText(u)));
-      if (u.aliases.length) main.appendChild(el('div', 'person-sub', 'Also written on the calendars: ' + u.aliases.join(', ')));
+      main.appendChild(rolesBox(u));
       if (admin && u.missing.length) main.appendChild(el('div', 'person-warn', 'Missing: ' + u.missing.join(', ') + '. Edit to fill it in.'));
       li.appendChild(main);
+      if (!admin && u.id === v.me.id) {
+        // Everyone can keep their own information up to date (not their roles).
+        var mine = el('div', 'person-actions');
+        mine.appendChild(button('secondary small', 'Edit my info', function () { startEdit(u); }));
+        li.appendChild(mine);
+      }
       if (admin) {
         var actions = el('div', 'person-actions');
         var lockedSuper = u.superAdmin && !v.me.superAdmin;
@@ -273,12 +283,13 @@
     /* ── adding and editing ── */
     function draftFor(u) {
       var roles = {};
-      state.view.apps.forEach(function (a) { roles[a.key] = u ? (u.roles[a.key] || []).slice() : []; });
+      state.view.apps.forEach(function (a) { roles[a.key] = u ? (u.roles[a.key] || []).slice() : a.key === 'portal' ? ['viewer'] : []; });
       return {
         id: u ? u.id : '', owner: !!(u && u.owner), email: u ? u.email : '', altEmail: u ? u.altEmail : '',
-        firstName: u ? u.firstName : '', lastName: u ? u.lastName : '', aliases: u ? u.aliases.join(', ') : '',
+        firstName: u ? u.firstName : '', lastName: u ? u.lastName : '',
+        altFirstNames: u ? (u.altFirstNames || []).join(', ') : '', altLastNames: u ? (u.altLastNames || []).join(', ') : '',
         gradYear: u ? u.gradYear : '', jobTitle: u ? u.jobTitle : '', phones: u && u.phones.length ? u.phones.slice() : [''],
-        attending: !!(u && u.attending), superAdmin: !!(u && u.superAdmin), roles: roles,
+        attending: !!(u && u.attending), hpbFellow: !!(u && u.hpbFellow), superAdmin: !!(u && u.superAdmin), roles: roles,
       };
     }
     /** Opens "Add a person"; from a sign-up, filled in with its details and the usual roles for a fellow or a viewer. */
@@ -312,17 +323,22 @@
     }
     function formItem() { var li = el('li', 'person editing'); li.appendChild(personForm()); return li; }
 
-    /** The role choices for one app: None, each role, and the combinations the server allows (e.g. Fellow + Admin). */
+    /** The role choices for one app: None (not in the portal, which everyone can see) and each role. */
     function roleChoices(app) {
       var roles = state.view.roles.filter(function (r) { return app.roles.indexOf(r.key) !== -1; });
-      var out = [{ value: [], label: 'None' }];
-      roles.forEach(function (r) { out.push({ value: [r.key], label: r.label }); });
-      roles.forEach(function (r, i) {
-        roles.slice(i + 1).forEach(function (q) { if (r.with.indexOf(q.key) !== -1) out.push({ value: [r.key, q.key], label: r.label + ' + ' + q.label }); });
-      });
-      return out;
+      return (app.key === 'portal' ? [] : [{ key: '', label: 'None', with: [] }]).concat(roles);
     }
-    function sameRoles(a, b) { return a.slice().sort().join('|') === b.slice().sort().join('|'); }
+    /**
+     * Tapping a role: roles that combine (Fellow and Admin) are switched on and off together; any other choice stands
+     * alone. Switching off the last role leaves None (or Viewer in the portal).
+     */
+    function tapRole(app, current, role) {
+      if (!role.key) return [];
+      var combinable = current.every(function (k) { return k === role.key || role.with.indexOf(k) !== -1; });
+      if (!role.with.length || !combinable) return [role.key];
+      var next = current.indexOf(role.key) !== -1 ? current.filter(function (k) { return k !== role.key; }) : current.concat([role.key]);
+      return next.length ? next : app.key === 'portal' ? ['viewer'] : [];
+    }
     /** Quick settings for the usual kinds of people. */
     function presets() {
       var all = function (pick) { var r = {}; state.view.apps.forEach(function (a) { r[a.key] = pick(a); }); return r; };
@@ -331,7 +347,7 @@
         ['Fellow', all(function (a) { return has(a, 'fellow') ? ['fellow'] : has(a, 'viewer') ? ['viewer'] : []; })],
         ['Viewer everywhere', all(function (a) { return has(a, 'viewer') ? ['viewer'] : []; })],
         ['Admin everywhere', all(function (a) { return has(a, 'admin') ? ['admin'] : []; })],
-        ['No access', all(function () { return []; })],
+        ['No access', all(function (a) { return a.key === 'portal' ? ['viewer'] : []; })],
       ];
     }
 
@@ -352,22 +368,22 @@
 
     function personForm() {
       var v = state.view, d = state.draft, fellow = Object.keys(d.roles).some(function (k) { return d.roles[k].indexOf('fellow') !== -1; });
+      var self = !v.me.canEdit; // editing their own information: no roles or ticks
       var form = el('div', 'person-form');
       var grid = el('div', 'pf-grid');
       grid.appendChild(field('First name', 'firstName', { max: 40 }));
       grid.appendChild(field('Last name', 'lastName', { max: 40, hint: d.attending ? 'Living donor case titles use the last name.' : '' }));
-      grid.appendChild(field('Email they sign in with', 'email', { type: 'email', placeholder: 'name@gmail.com', disabled: d.owner, wide: true,
-        hint: d.owner ? 'The fellowship account’s email can’t be changed.' : 'The Google account they use for “Sign in with Google”.' }));
-      grid.appendChild(field('Second email', 'altEmail', { type: 'email', optional: true, placeholder: 'e.g. name@med.usc.edu', wide: true, hint: 'Optional. Can also sign in.' }));
+      grid.appendChild(field('Primary email', 'email', { type: 'email', placeholder: 'name@gmail.com', disabled: d.owner || self, wide: true,
+        hint: d.owner ? 'The fellowship account’s email can’t be changed.' : self ? 'Ask an admin to change your primary email.' : '' }));
+      grid.appendChild(field('Alternate email', 'altEmail', { type: 'email', optional: true, placeholder: 'e.g. name@med.usc.edu', wide: true, hint: 'Optional. Can also sign in.' }));
       form.appendChild(grid);
-      form.appendChild(rolesFieldset());
+      if (!self) form.appendChild(rolesFieldset());
       // Fellows (in any site) have a graduating year; everyone else a job title.
       var more = el('div', 'pf-grid pf-more-fields');
       if (fellow) more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027' }));
       else more.appendChild(field('Job title', 'jobTitle', { max: 80, placeholder: 'e.g. Transplant surgeon', wide: true }));
-      more.appendChild(field('Other spellings on the calendars', 'aliases', { optional: true, wide: true, placeholder: 'e.g. Ellie Heidorn',
-        hint: 'Optional, separated by commas. Calendar events titled with these count as this person.' }));
       form.appendChild(more);
+      form.appendChild(altNames());
 
       // Phones
       var phones = el('div', 'pf-phones');
@@ -384,10 +400,13 @@
       if (d.phones.length < MAX_PHONES) phones.appendChild(button('linkbtn pf-more', '+ Another number', function () { d.phones.push(''); rerenderForm(); }));
       form.appendChild(phones);
 
-      // Attending, super admin
-      form.appendChild(checkRow('attending', 'Attending', 'Offered (by last name) when someone adds a living donor case.'));
-      if (v.me.superAdmin && !d.owner) form.appendChild(checkRow('superAdmin', 'Super admin', 'Can do everything on every site, including making other super admins. Their roles above only matter for being a fellow.'));
-      else if (d.superAdmin) form.appendChild(el('p', 'pf-hint', d.owner ? 'The fellowship account is always a super admin.' : 'Super admin (only a super admin can change this).'));
+      // Attending, HPB fellow, super admin (admins only)
+      if (!self) {
+        form.appendChild(checkRow('attending', 'Attending', ''));
+        if (fellow || d.hpbFellow) form.appendChild(checkRow('hpbFellow', 'HPB fellow', 'Can be on a service with one other fellow.'));
+        if (v.me.superAdmin && !d.owner) form.appendChild(checkRow('superAdmin', 'Super admin', 'Can do everything on every site, including making other super admins. Their roles above only matter for being a fellow.'));
+        else if (d.superAdmin) form.appendChild(el('p', 'pf-hint', d.owner ? 'The fellowship account is always a super admin.' : 'Super admin (only a super admin can change this).'));
+      }
 
       var actions = el('div', 'pf-actions');
       actions.appendChild(button('primary small', d.id ? 'Save changes' : 'Add ' + (d.firstName ? d.firstName : 'person'), save_));
@@ -396,6 +415,23 @@
       var st = el('div', 'status'); st.id = 'formStatus'; st.setAttribute('role', 'status'); st.setAttribute('aria-live', 'polite');
       form.appendChild(st);
       return form;
+    }
+
+    /** Alternate names: other first and last names used on the calendars (every combination counts as this person). */
+    function altNames() {
+      var d = state.draft, wrap = el('div', 'pf-alt');
+      wrap.appendChild(el('span', 'label', 'Alternate name(s)'));
+      var grid = el('div', 'pf-grid');
+      [['altFirstNames', 'First name(s)', 'e.g. Ellie'], ['altLastNames', 'Last name(s)', 'e.g. Smith']].forEach(function (f) {
+        var i = el('input'); i.type = 'text'; i.value = d[f[0]] || ''; i.autocomplete = 'off'; i.placeholder = f[2];
+        i.setAttribute('aria-label', 'Alternate ' + f[1].toLowerCase());
+        i.addEventListener('input', function () { d[f[0]] = i.value; });
+        var box = el('label', 'pf-field'); box.appendChild(el('span', 'pf-sublabel', f[1])); box.appendChild(i);
+        grid.appendChild(box);
+      });
+      wrap.appendChild(grid);
+      wrap.appendChild(el('span', 'pf-hint', 'Optional. Separate several with commas.'));
+      return wrap;
     }
 
     /** The roles in each site, with quick settings for the usual kinds of people. */
@@ -412,26 +448,25 @@
       v.apps.forEach(function (a) {
         var row = el('div', 'pf-app');
         row.appendChild(el('span', 'pf-app-name', a.label));
-        var choices = roleChoices(a);
-        var keys = el('div', 'keys rolekeys' + (choices.length > 3 ? ' many' : '')); keys.style.setProperty('--n', choices.length);
-        keys.setAttribute('role', 'radiogroup'); keys.setAttribute('aria-label', a.label);
+        var choices = roleChoices(a), now = d.roles[a.key] || [];
+        var keys = el('div', 'keys rolekeys'); keys.style.setProperty('--n', choices.length);
+        keys.setAttribute('role', 'group'); keys.setAttribute('aria-label', a.label + ' (Fellow and Admin can both be chosen)');
         choices.forEach(function (c) {
-          var b = button('tab', c.label, function () { d.roles[a.key] = c.value.slice(); rerenderForm(); });
-          b.setAttribute('role', 'radio');
-          b.setAttribute('aria-checked', sameRoles(c.value, d.roles[a.key] || []) ? 'true' : 'false');
+          var b = button('tab', c.label, function () { d.roles[a.key] = tapRole(a, now, c); rerenderForm(); });
+          b.setAttribute('aria-pressed', (c.key ? now.indexOf(c.key) !== -1 : !now.length) ? 'true' : 'false');
           keys.appendChild(b);
         });
         row.appendChild(keys);
         roles.appendChild(row);
       });
-      roles.appendChild(el('p', 'pf-hint', 'Viewer: can look. Fellow: their own time off, living donor cases, and counted in the schedule and cross-cover; fellows can also see the fellowship calendars. Admin: can change things for everyone on that site.'));
       return roles;
     }
     function checkRow(key, title, text) {
       var d = state.draft, row = el('label', 'override-toggle pf-check');
       var box = el('input'); box.type = 'checkbox'; box.checked = !!d[key];
       box.addEventListener('change', function () { d[key] = box.checked; rerenderForm(); });
-      var t = el('span'); t.appendChild(el('b', null, title)); t.appendChild(el('br')); t.appendChild(document.createTextNode(text));
+      var t = el('span'); t.appendChild(el('b', null, title));
+      if (text) { t.appendChild(el('br')); t.appendChild(document.createTextNode(text)); }
       row.appendChild(box); row.appendChild(t);
       return row;
     }
@@ -445,7 +480,8 @@
     function save_() {
       var d = state.draft, fellow = Object.keys(d.roles).some(function (k) { return d.roles[k].indexOf('fellow') !== -1; });
       var user = {
-        email: d.email, altEmail: d.altEmail, firstName: d.firstName, lastName: d.lastName, aliases: d.aliases,
+        email: d.email, altEmail: d.altEmail, firstName: d.firstName, lastName: d.lastName,
+        altFirstNames: d.altFirstNames, altLastNames: d.altLastNames, hpbFellow: d.hpbFellow,
         // Fellows have a graduating year; everyone else a job title.
         gradYear: fellow ? d.gradYear : '', jobTitle: fellow ? '' : d.jobTitle,
         phones: d.phones.map(function (p) { return p.trim(); }).filter(Boolean),
