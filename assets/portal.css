@@ -25,9 +25,20 @@
 .filters .tab { padding: 8px 6px; min-height: 44px; font-size: 14px; }
 .filters .tab small { font-variant-numeric: tabular-nums; }
 
-/* ── Google Group ── */
-.group-counts { font-size: 14px; font-weight: 700; margin: 0 0 12px; }
+/* ── calendar sharing ── */
 .toolbar.one { grid-template-columns: 1fr; margin-top: 0; }
+.sharing { list-style: none; margin: 0 0 12px; padding: 0; font-size: 14px; }
+.sharing li { padding: 8px 0; border-top: 1px solid var(--line); }
+.sharing li:first-child { border-top: 0; padding-top: 0; }
+.sharing .sharing-note { display: block; color: var(--muted); overflow-wrap: anywhere; }
+.sharing .sharing-at { color: var(--muted); font-size: 13px; }
+
+/* ── sign-ups waiting for approval ── */
+.signups { background: var(--gold-soft); border: 1.5px solid var(--gold-edge); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; }
+.signups h3 { font-size: 15px; font-weight: 800; margin: 0 0 4px; }
+.signups .hint.small { margin-top: 6px; }
+.person.pending { border-top-color: var(--gold-edge); }
+.secondary.small.strong { color: #fff; }
 
 /* ── the member list ── */
 .people-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px dotted var(--line-strong); }
@@ -97,4 +108,21 @@ input[type="tel"] {
   .pf-grid { grid-template-columns: 1fr; }
   /* five role choices don't fit in a row on a phone: three, then two */
   .rolekeys.many { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── the sign-up page ── */
+main.page.signup { max-width: 640px; }
+main.page.signup #auth { padding: 0; max-width: none; }
+.steps { margin: 0 0 12px; padding-left: 22px; }
+.steps li { margin-bottom: 6px; }
+.google-help { background: var(--sheet-sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 15px; }
+.google-help summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.google-help ol { padding-left: 22px; margin: 8px 0; }
+.google-help li { margin-bottom: 4px; }
+.signup .pf-field { margin-top: 12px; }
+.signup .keys { margin-top: 6px; }
+.signup .primary { margin-top: 16px; }
+textarea {
+  width: 100%; min-height: 84px; font: inherit; font-size: 16px; color: var(--ink); background-color: var(--sheet);
+  border: 1.5px solid var(--line-strong); border-radius: 8px; padding: 10px 12px; resize: vertical;
 }
