@@ -45,18 +45,19 @@ Another email becomes their primary email, and the invited one becomes their alt
 
 ## Shared sign-in
 
-`session.html` keeps the sign-in for all three sites. Every page opens it in a hidden frame.
+A cookie for `usctransplant.life` holds the sign-in. `assets/api.js` reads and writes it on all three sites.
 
 - Signing in on any site signs in on the other two.
-- Signing out on any site signs out of all three, including pages already open.
-- Only the three site addresses in `SITES` may talk to it.
-- It keeps only sign-in tokens for these sites, and drops them when they expire.
+- Signing out on any site signs out of all three. Pages already open notice at their next request.
+- The cookie expires with the token: an hour for Google, days for an emailed code.
+- The server never reads the cookie. Each request sends the token, and the server checks it.
+- A cookie works in Safari too. Safari keeps storage in hidden frames apart per subdomain, so a frame can't share a sign-in.
 
 ## How it fits together
 
 ```
 Browser ──► this repository (GitHub Pages)
-   │  "Sign in with Google" or an emailed code → a sign-in token (kept by session.html)
+   │  "Sign in with Google" or an emailed code → a sign-in token (kept in a usctransplant.life cookie)
    ▼
 Apps Script web app (private repository: timeoff-backend, registry.gs)
    checks the token, then reads and saves the member list in Script Properties
@@ -71,7 +72,6 @@ The time-off site and the call schedule ask the same member list who may do what
 | `index.html` | The portal |
 | `signup.html` | Sign-up page, with help for creating a Google account |
 | `welcome.html` | Invitation landing page. Without an invitation, it opens the portal |
-| `session.html` | Shared sign-in for all three sites |
 | `assets/portal.css` | Styles for this site only |
 | `assets/api.js`, `assets/ui.js`, `assets/styles.css`, `assets/fonts/` | Shared with `timeoff` and `schedule`. Keep them identical |
 | `.github/workflows/shared-files.yml` | Fails when the shared files differ from the other two sites |
@@ -81,8 +81,8 @@ The time-off site and the call schedule ask the same member list who may do what
 
 - **Pages**: edit here and commit to `main`. GitHub Pages publishes within a minute or two.
 - **Shared files**: make the same change in `timeoff` and `schedule`. The **Shared files** check catches differences.
-- **New sign-in client**: update `CLIENT_ID` in `session.html`. The `timeoff-backend` README lists every other place.
-- **New or moved site**: update `SITES` in `session.html` and `RG_APPS` in `registry.gs`.
+- **New sign-in client**: update `CLIENT_ID` in `assets/api.js`. The `timeoff-backend` README lists every other place.
+- **New or moved site**: update `RG_APPS` in `registry.gs`. A site outside `usctransplant.life` also needs `COOKIE_DOMAIN` changed in `assets/api.js`.
 - **Roles, apps and the rules for changing people**: edit `registry.gs` in `timeoff-backend`.
 
 ## Hosting
