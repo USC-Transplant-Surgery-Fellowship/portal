@@ -23,7 +23,7 @@ Its README covers administration, accounts and handover for all three sites.
 **Admins**
 
 - Add, edit and remove people.
-- Set **who each person is**: transplant fellow, HPB fellow, attending, or none of these.
+- Set **who each person is**: transplant fellow, HPB fellow, attending, or other.
 - Set each person's role per site: none, View, Edit, Admin, or Edit + Admin.
   Only fellows can have Edit. Edit lets them request time off and puts them on the call schedule.
 - Set fellows' **start and graduating years**. A fellow counts from August of the start year through July 31 of the graduating year.
