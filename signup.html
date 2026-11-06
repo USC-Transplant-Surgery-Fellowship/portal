@@ -69,7 +69,6 @@
           <button class="tab" type="button" role="radio" data-kind="other" aria-checked="false">Someone else</button>
         </div>
         <label class="pf-field" id="gradRow" hidden><span class="label">Year you graduate from the fellowship *</span><input id="gradYear" type="text" inputmode="numeric" maxlength="4" placeholder="e.g. 2027"></label>
-        <label class="pf-field" id="startRow" hidden><span class="label">Year you start, if you haven’t started yet</span><input id="startYear" type="text" inputmode="numeric" maxlength="4" placeholder="e.g. 2027 (you start Aug 1)"></label>
         <label class="pf-field" id="jobRow" hidden><span class="label">Job title *</span><input id="jobTitle" type="text" maxlength="80" placeholder="e.g. Transplant surgeon, coordinator"></label>
         <label class="pf-field"><span class="label">Phone number</span><input id="phone" type="tel" autocomplete="tel" placeholder="Optional"></label>
         <label class="pf-field"><span class="label">Anything the admins should know</span><textarea id="note" maxlength="500" placeholder="Optional, e.g. starting in July"></textarea></label>
@@ -96,7 +95,6 @@
       state.kind = k;
       document.querySelectorAll('#kind .tab').forEach(function (b) { b.setAttribute('aria-checked', b.dataset.kind === k ? 'true' : 'false'); });
       $('gradRow').hidden = k !== 'fellow';
-      $('startRow').hidden = k !== 'fellow';
       $('jobRow').hidden = k !== 'other';
     }
     function ready(who) {
@@ -111,7 +109,7 @@
     function submit() {
       if (!state.kind) { showStatus($('status'), 'error', 'Choose whether you’re a fellow or someone else.', []); return; }
       UI.busy(true); $('submit').disabled = true;
-      TimeOffApi.run('apiSignUp', [{ firstName: $('firstName').value, lastName: $('lastName').value, kind: state.kind, gradYear: $('gradYear').value, startYear: $('startYear').value,
+      TimeOffApi.run('apiSignUp', [{ firstName: $('firstName').value, lastName: $('lastName').value, kind: state.kind, gradYear: $('gradYear').value,
         jobTitle: $('jobTitle').value, phone: $('phone').value, note: $('note').value }], function (res) {
         UI.busy(false); $('submit').disabled = false;
         if (!res.ok) { showStatus($('status'), 'error', 'Not sent yet', res.errors, true); return; }

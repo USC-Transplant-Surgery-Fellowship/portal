@@ -4,10 +4,10 @@ The member list for the USC Transplant Surgery Fellowship's sites: **https://por
 
 - **Everyone on the member list** sees it: names, emails, phone numbers, fellowship years or job titles, and what each
   person can do on each site — with links to the sites they can use. Each person can edit their own information
-  (not their primary email, roles, ticks or fellowship years).
+  (not their primary email, roles or ticks).
 - **Admins** add, edit and remove people and set their role on each site (time off, call schedule, portal): none,
   viewer, fellow and/or admin. They mark **attendings** (offered by last name when adding a living donor case) and
-  **HPB fellows** (who may share a service with another fellow), set fellows' **start and graduating years** (a fellow
+  **HPB fellows** (who may share a service with another fellow), set fellows' **start and graduating years** (fellows can set their own too; a fellow
   counts from August of their start year through July 31 of their graduating year, so incoming fellows are added in
   the spring and graduates drop out on Aug 1 by themselves), approve or decline **sign-ups**, share the calendars
   with every fellow, and see the recent changes. Only a super admin can make or change super admins.

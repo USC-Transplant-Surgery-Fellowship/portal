@@ -302,7 +302,7 @@
       if (signup) {
         var d = state.draft, preset = presets().filter(function (p) { return p[0] === (signup.kind === 'fellow' ? 'Fellow' : 'Viewer everywhere'); })[0];
         d.email = signup.email; d.firstName = signup.firstName; d.lastName = signup.lastName;
-        d.gradYear = signup.gradYear || ''; d.startYear = signup.startYear || ''; d.jobTitle = signup.jobTitle || ''; d.phones = signup.phone ? [signup.phone] : [''];
+        d.gradYear = signup.gradYear || ''; d.jobTitle = signup.jobTitle || ''; d.phones = signup.phone ? [signup.phone] : [''];
         if (preset) Object.keys(preset[1]).forEach(function (k) { d.roles[k] = preset[1][k].slice(); });
       }
       showStatus($('status'));
@@ -383,13 +383,13 @@
       form.appendChild(grid);
       if (!self) form.appendChild(rolesFieldset());
       // Fellows (in any site) have a graduating year, and a start year if they haven't started yet; everyone else a job title.
-      // The years decide which academic years they count as a fellow in, so only admins change them.
+      // The years decide which academic years they count as a fellow in. Fellows can set their own.
       var more = el('div', 'pf-grid pf-more-fields');
       if (fellow) {
-        more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027', disabled: self,
-          hint: self ? 'Ask an admin to change your years.' : 'A fellow through July 31 of this year.' }));
-        more.appendChild(field('Start year', 'startYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027', optional: true, disabled: self,
-          hint: 'Starts August 1 of this year. Leave blank if they’ve already started.' }));
+        more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027',
+          hint: 'A fellow through July 31 of this year.' }));
+        more.appendChild(field('Start year', 'startYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027', optional: true,
+          hint: 'Starts August 1 of this year. Leave blank if already started.' }));
       }
       else more.appendChild(field('Job title', 'jobTitle', { max: 80, placeholder: 'e.g. Transplant surgeon', wide: true }));
       form.appendChild(more);
