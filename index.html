@@ -108,6 +108,10 @@
       });
       return box;
     }
+    /** "Fellow, starts Aug 2027, graduating 2029": which academic years they count as a fellow in. */
+    function fellowYears(u) {
+      return 'Fellow' + (u.startYear ? ', starts Aug ' + u.startYear : '') + (u.gradYear ? ', graduating ' + u.gradYear : '');
+    }
     /** "Elise (Ellie) Heidorn": alternate first names after the first name, alternate last names after the last. */
     function fullName(u) {
       if (!u.firstName && !u.lastName) return u.name;
@@ -200,7 +204,7 @@
         var name = el('div', 'person-name'); name.appendChild(el('b', null, s.firstName + ' ' + s.lastName));
         name.appendChild(el('span', 'chip muted', 'Signed up ' + s.at));
         main.appendChild(name);
-        main.appendChild(el('div', 'person-sub', s.kind === 'fellow' ? 'Fellow, graduating ' + s.gradYear : s.jobTitle));
+        main.appendChild(el('div', 'person-sub', s.kind === 'fellow' ? fellowYears(s) : s.jobTitle));
         var contact = el('div', 'person-contact');
         var a = el('a', null, s.email); a.href = 'mailto:' + s.email; contact.appendChild(a);
         if (s.phone) { var t = el('a', null, s.phone); t.href = 'tel:' + s.phone.replace(/[^\d+]/g, ''); contact.appendChild(t); }
@@ -251,7 +255,7 @@
       if (u.attending) name.appendChild(el('span', 'chip muted', 'Attending'));
       if (u.hpbFellow) name.appendChild(el('span', 'chip muted', 'HPB fellow'));
       main.appendChild(name);
-      var sub = isFellow(u) ? (u.gradYear ? 'Fellow, graduating ' + u.gradYear : 'Fellow') : (u.jobTitle || '');
+      var sub = isFellow(u) ? fellowYears(u) : (u.jobTitle || '');
       if (sub) main.appendChild(el('div', 'person-sub', sub));
       var contact = el('div', 'person-contact');
       [u.email, u.altEmail].filter(Boolean).forEach(function (e) { var a = el('a', null, e); a.href = 'mailto:' + e; contact.appendChild(a); });
@@ -288,7 +292,7 @@
         id: u ? u.id : '', owner: !!(u && u.owner), email: u ? u.email : '', altEmail: u ? u.altEmail : '',
         firstName: u ? u.firstName : '', lastName: u ? u.lastName : '',
         altFirstNames: u ? (u.altFirstNames || []).join(', ') : '', altLastNames: u ? (u.altLastNames || []).join(', ') : '',
-        gradYear: u ? u.gradYear : '', jobTitle: u ? u.jobTitle : '', phones: u && u.phones.length ? u.phones.slice() : [''],
+        gradYear: u ? u.gradYear : '', startYear: u ? u.startYear || '' : '', jobTitle: u ? u.jobTitle : '', phones: u && u.phones.length ? u.phones.slice() : [''],
         attending: !!(u && u.attending), hpbFellow: !!(u && u.hpbFellow), superAdmin: !!(u && u.superAdmin), roles: roles,
       };
     }
@@ -298,7 +302,7 @@
       if (signup) {
         var d = state.draft, preset = presets().filter(function (p) { return p[0] === (signup.kind === 'fellow' ? 'Fellow' : 'Viewer everywhere'); })[0];
         d.email = signup.email; d.firstName = signup.firstName; d.lastName = signup.lastName;
-        d.gradYear = signup.gradYear || ''; d.jobTitle = signup.jobTitle || ''; d.phones = signup.phone ? [signup.phone] : [''];
+        d.gradYear = signup.gradYear || ''; d.startYear = signup.startYear || ''; d.jobTitle = signup.jobTitle || ''; d.phones = signup.phone ? [signup.phone] : [''];
         if (preset) Object.keys(preset[1]).forEach(function (k) { d.roles[k] = preset[1][k].slice(); });
       }
       showStatus($('status'));
@@ -378,9 +382,15 @@
       grid.appendChild(field('Alternate email', 'altEmail', { type: 'email', optional: true, placeholder: 'e.g. name@med.usc.edu', wide: true, hint: 'Optional. Can also sign in.' }));
       form.appendChild(grid);
       if (!self) form.appendChild(rolesFieldset());
-      // Fellows (in any site) have a graduating year; everyone else a job title.
+      // Fellows (in any site) have a graduating year, and a start year if they haven't started yet; everyone else a job title.
+      // The years decide which academic years they count as a fellow in, so only admins change them.
       var more = el('div', 'pf-grid pf-more-fields');
-      if (fellow) more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027' }));
+      if (fellow) {
+        more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027', disabled: self,
+          hint: self ? 'Ask an admin to change your years.' : 'A fellow through July 31 of this year.' }));
+        more.appendChild(field('Start year', 'startYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027', optional: true, disabled: self,
+          hint: 'Starts August 1 of this year. Leave blank if they’ve already started.' }));
+      }
       else more.appendChild(field('Job title', 'jobTitle', { max: 80, placeholder: 'e.g. Transplant surgeon', wide: true }));
       form.appendChild(more);
       form.appendChild(altNames());
@@ -482,8 +492,8 @@
       var user = {
         email: d.email, altEmail: d.altEmail, firstName: d.firstName, lastName: d.lastName,
         altFirstNames: d.altFirstNames, altLastNames: d.altLastNames, hpbFellow: d.hpbFellow,
-        // Fellows have a graduating year; everyone else a job title.
-        gradYear: fellow ? d.gradYear : '', jobTitle: fellow ? '' : d.jobTitle,
+        // Fellows have a graduating year (and maybe a start year); everyone else a job title.
+        gradYear: fellow ? d.gradYear : '', startYear: fellow ? d.startYear : '', jobTitle: fellow ? '' : d.jobTitle,
         phones: d.phones.map(function (p) { return p.trim(); }).filter(Boolean),
         attending: d.attending, superAdmin: d.superAdmin, roles: d.roles,
       };
@@ -511,7 +521,7 @@
         showStatus($('sharingStatus'), res.problems.length ? 'error' : 'ok', res.problems.length ? 'Some sharing couldn’t be changed' : 'Done', res.lines.concat(res.problems));
       }, $('sharingStatus'));
     });
-    TimeOffApi.start({ app: 'portal', need: 'viewer', onReady: function (who) { state.who = who; renderSites(who); load(); } });
+    TimeOffApi.start({ app: 'portal', need: 'viewer', years: false, onReady: function (who) { state.who = who; renderSites(who); load(); } });
   })();
   </script>
 </body>
