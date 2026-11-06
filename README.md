@@ -1,66 +1,92 @@
-# Fellowship Portal
+# USC Transplant Surgery Fellowship — Portal
 
-The member list for the USC Transplant Surgery Fellowship's sites: **https://portal.usctransplant.life**
+The member portal for the USC Transplant Surgery Fellowship's sites: **https://portal.usctransplant.life**
 
-- **Everyone on the member list** sees it: names, emails, phone numbers, fellowship years or job titles, and what each
-  person can do on each site — with links to the sites they can use. Each person can edit their own information
-  (not their primary email, roles or ticks), choose which automatic emails they get at each of their addresses
-  (**Emails you get**; the schedule emails link to it as `/#emails`), and make a Google account's email their primary
-  email (**How you sign in**).
-- **Admins** add, edit and remove people and set their role on each site (time off, call schedule, portal): none,
-  viewer, fellow and/or admin. They mark **attendings** (offered by last name when adding a living donor case) and
-  **HPB fellows** (who may share a service with another fellow), set fellows' **start and graduating years** (fellows can set their own too; a fellow
-  counts from August of their start year through July 31 of their graduating year, so incoming fellows are added in
-  the spring and graduates drop out on Aug 1 by themselves), approve or decline **sign-ups**, share the calendars
-  with every fellow, change anyone's emails, **invite** people who haven't signed in yet, and see the recent changes.
-  Only a super admin can make or change super admins, and only super admins see **Site activity**: each person's
-  visits (when, how long, how they signed in) and what they did.
-- **New people** sign up at `/signup.html`: they sign in (with Google, or a code emailed to any address) and say who
-  they are; an admin approves them. The page also explains how to make a Google account with a non-Gmail address.
-- **Invited people** land on `/welcome.html?invite=…` (the link in their invitation email): it says what the sites are
-  for, and they sign in with the invited email or another one (which then becomes their primary email).
-- **https://usctransplant.life** (and www) forwards here: Squarespace → Domains → usctransplant.life → Website →
-  Domain forwarding.
+https://usctransplant.life and www forward here. Squarespace sets that forwarding under Domains → usctransplant.life → Website.
 
-It also holds `session.html`, which keeps the sign-in for all three sites: sign in on any of them and you are
-signed in on the others; Sign out on any of them signs out of all, including pages already open.
+This repository holds only the pages. GitHub Pages serves them. They contain no personal data.
+The server lives in the private `timeoff-backend` repository, mainly in `registry.gs`.
+Its README covers administration, accounts and handover for all three sites.
+
+## What people can do
+
+**Every member**
+
+- Looks people up: names, emails, phone numbers, fellowship years or job titles, and roles.
+- Opens the sites they can use.
+- Edits their own details, including fellowship years. Admins control email, roles and who they are.
+- Chooses which automatic emails reach each of their addresses, under **Emails you get**.
+  The schedule emails link straight there (`/#emails`).
+- Makes a Google account's email their primary email, under **How you sign in**.
+  That card appears after a code sign-in, or after a Google sign-in with a non-primary email.
+
+**Admins**
+
+- Add, edit and remove people.
+- Set **who each person is**: transplant fellow, HPB fellow, attending, or none of these.
+- Set each person's role per site: none, View, Edit, Admin, or Edit + Admin.
+  Only fellows can have Edit. Edit lets them request time off and puts them on the call schedule.
+- Set fellows' **start and graduating years**. A fellow counts from August of the start year through July 31 of the graduating year.
+- Approve or decline **sign-ups**.
+- **Invite** people who have never signed in.
+- Change anyone's emails.
+- Share the calendars with every fellow ("Check calendar sharing").
+- Read the recent changes.
+
+**Super admins** also create and change super admins, and see **Site activity**.
+Site activity lists each person's visits, how they signed in, and what they did.
+
+**New people** sign up at `/signup.html`. They sign in with Google or an emailed code, then describe themselves.
+An admin approves them. The page also explains how to create a Google account for a non-Gmail address.
+
+**Invited people** land on `/welcome.html?invite=…` from their invitation email.
+The page explains the sites. They sign in with the invited email or another one.
+Another email becomes their primary email, and the invited one becomes their alternate.
+
+## Shared sign-in
+
+`session.html` keeps the sign-in for all three sites. Every page opens it in a hidden frame.
+
+- Signing in on any site signs in on the other two.
+- Signing out on any site signs out of all three, including pages already open.
+- Only the three site addresses in `SITES` may talk to it.
+- It keeps only sign-in tokens for these sites, and drops them when they expire.
 
 ## How it fits together
 
 ```
-Browser ──► this repository (GitHub Pages: the pages people see)
-              │  "Sign in with Google" → a Google ID token (kept by session.html for all three sites)
-              ▼
-            Google Apps Script web app (private repository: timeoff-backend, registry.gs)
-              checks the token, then reads and saves the member list (Script Properties)
+Browser ──► this repository (GitHub Pages)
+   │  "Sign in with Google" or an emailed code → a sign-in token (kept by session.html)
+   ▼
+Apps Script web app (private repository: timeoff-backend, registry.gs)
+   checks the token, then reads and saves the member list in Script Properties
 ```
 
-The same server runs the time-off site (https://timeoff.usctransplant.life) and the call schedule
-(https://schedule.usctransplant.life), and both ask the member list who may do what. This repository holds only the
-pages — no personal data.
+The time-off site and the call schedule ask the same member list who may do what.
 
-| File | What it is |
+## Files
+
+| File | Purpose |
 |---|---|
 | `index.html` | The portal |
-| `signup.html` | Signing up (and how to make a Google account with any email address) |
-| `welcome.html` | Where invitation emails link: accepting an invitation |
-| `session.html` | The shared sign-in (opened invisibly by every page of the three sites) |
-| `assets/portal.css` | Styles used only by this site |
-| `assets/styles.css`, `assets/ui.js`, `assets/api.js`, `assets/fonts/` | **Shared with the time-off and schedule sites** — keep identical in all three repositories (a GitHub check compares them) |
-| `CNAME` | The custom domain for GitHub Pages |
+| `signup.html` | Sign-up page, with help for creating a Google account |
+| `welcome.html` | Invitation landing page. Without an invitation, it opens the portal |
+| `session.html` | Shared sign-in for all three sites |
+| `assets/portal.css` | Styles for this site only |
+| `assets/api.js`, `assets/ui.js`, `assets/styles.css`, `assets/fonts/` | Shared with `timeoff` and `schedule`. Keep them identical |
+| `.github/workflows/shared-files.yml` | Fails when the shared files differ from the other two sites |
+| `CNAME` | Custom domain for GitHub Pages |
 
 ## Making changes
 
-- Page changes: edit here and commit to `main`; GitHub Pages publishes within a minute or two.
-- Shared files: make the same change in the `timeoff` and `schedule` repositories. The **Shared files** check on the
-  Actions tab fails when the copies differ.
-- If the Google sign-in client changes, update `CLIENT_ID` in `session.html` too (and see the time-off README).
-- If a site's address changes or a site is added, update `SITES` in `session.html` (the sites allowed to use the sign-in)
-  and `RG_APPS` in `registry.gs`.
-- Roles, apps and the rules for changing people are in the private `timeoff-backend` repository (`registry.gs`).
+- **Pages**: edit here and commit to `main`. GitHub Pages publishes within a minute or two.
+- **Shared files**: make the same change in `timeoff` and `schedule`. The **Shared files** check catches differences.
+- **New sign-in client**: update `CLIENT_ID` in `session.html`. The `timeoff-backend` README lists every other place.
+- **New or moved site**: update `SITES` in `session.html` and `RG_APPS` in `registry.gs`.
+- **Roles, apps and the rules for changing people**: edit `registry.gs` in `timeoff-backend`.
 
 ## Hosting
 
-GitHub Pages: Settings → Pages → Deploy from branch `main` / root, custom domain `portal.usctransplant.life`, Enforce HTTPS.
-DNS (Squarespace, domain usctransplant.life): CNAME `portal` → `usc-transplant-surgery-fellowship.github.io`.
-Sign-in: the Google Cloud OAuth client lists `https://portal.usctransplant.life` as an authorized JavaScript origin.
+- **GitHub Pages**: Settings → Pages → Deploy from branch `main`, folder `/`. Custom domain `portal.usctransplant.life`. Enforce HTTPS on.
+- **DNS** (Squarespace, `usctransplant.life`): `CNAME portal → usc-transplant-surgery-fellowship.github.io`.
+- **Sign-in**: the Google sign-in client lists `https://portal.usctransplant.life` as an authorized JavaScript origin.

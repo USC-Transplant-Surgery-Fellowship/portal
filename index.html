@@ -122,11 +122,21 @@
 
     /* ── who's who ── */
     function roleLabel(key) { return (state.view.roles.filter(function (r) { return r.key === key; })[0] || { label: key }).label; }
-    function isFellow(u) { return Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; }); }
+    /** Transplant and HPB fellows. Who someone is (kind) is separate from their roles; only fellows may have Edit. */
+    function fellowKind(kind) { return kind === 'fellow' || kind === 'hpb'; }
+    function isFellow(u) { return fellowKind(kindOf(u)); }
+    // A server from before 1.0 sends no kinds: work them out the way registry.gs does (rgKindOf_).
+    var KINDS = [{ key: 'fellow', label: 'Transplant fellow' }, { key: 'hpb', label: 'HPB fellow' }, { key: 'attending', label: 'Attending' }];
+    function kindOf(u) {
+      if (typeof u.kind === 'string') return u.kind;
+      if (u.hpbFellow) return 'hpb';
+      if (Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; })) return 'fellow';
+      return u.attending ? 'attending' : '';
+    }
     function isAdmin(u) { return u.superAdmin || Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('admin') !== -1; }); }
     function needsAttention(u) { return u.missing.length > 0; }
     function notSignedIn(u) { return !u.owner && !u.signedInAt; }
-    /** Each site on its own line: "Time off: Fellow, Admin". */
+    /** Each site on its own line: "Time off: Edit, Admin". */
     function rolesBox(u) {
       var box = el('div', 'person-roles');
       if (u.superAdmin) { box.appendChild(document.createTextNode('Super admin: can do everything on every site' + (isFellow(u) ? ' (also a fellow)' : '') + '.')); return box; }
@@ -140,9 +150,10 @@
       });
       return box;
     }
-    /** "Fellow, starts Aug 2027, graduating 2029": which academic years they count as a fellow in. */
-    function fellowYears(u) {
-      return 'Fellow' + (u.startYear ? ', starts Aug ' + u.startYear : '') + (u.gradYear ? ', graduating ' + u.gradYear : '');
+    /** "HPB fellow, starts Aug 2027, graduating 2029": which academic years they count as a fellow in. */
+    function fellowYears(u, label) {
+      label = label || (kindOf(u) === 'hpb' ? 'HPB fellow' : 'Transplant fellow');
+      return label + (u.startYear ? ', starts Aug ' + u.startYear : '') + (u.gradYear ? ', graduating ' + u.gradYear : '');
     }
     /** "Elise (Ellie) Heidorn": alternate first names after the first name, alternate last names after the last. */
     function fullName(u) {
@@ -240,7 +251,7 @@
         var name = el('div', 'person-name'); name.appendChild(el('b', null, s.firstName + ' ' + s.lastName));
         name.appendChild(el('span', 'chip muted', 'Signed up ' + s.at));
         main.appendChild(name);
-        main.appendChild(el('div', 'person-sub', s.kind === 'fellow' ? fellowYears(s) : s.jobTitle));
+        main.appendChild(el('div', 'person-sub', s.kind === 'fellow' ? fellowYears(s, 'Fellow') : s.jobTitle));
         var contact = el('div', 'person-contact');
         var a = el('a', null, s.email); a.href = 'mailto:' + s.email; contact.appendChild(a);
         if (s.phone) { var t = el('a', null, s.phone); t.href = 'tel:' + s.phone.replace(/[^\d+]/g, ''); contact.appendChild(t); }
@@ -308,7 +319,6 @@
       if (u.id === v.me.id) name.appendChild(el('span', 'chip-you', 'You'));
       if (u.superAdmin) name.appendChild(el('span', 'chip ok', u.owner ? 'Fellowship account' : 'Super admin'));
       if (u.attending) name.appendChild(el('span', 'chip muted', 'Attending'));
-      if (u.hpbFellow) name.appendChild(el('span', 'chip muted', 'HPB fellow'));
       if (admin && notSignedIn(u)) name.appendChild(el('span', 'chip warn', u.invitedAt ? 'Invited ' + u.invitedAt.split(' ')[1] : 'Not signed in yet'));
       main.appendChild(name);
       var sub = isFellow(u) ? fellowYears(u) : (u.jobTitle || '');
@@ -362,8 +372,8 @@
       box.appendChild(emailsBox(u, $('emailsStatus')));
     }
     /**
-     * Each email someone can get, with a switch for each of their addresses, and "Get all" / "Stop all". New kinds of
-     * automatic email appear here by themselves (the server lists them).
+     * Each email someone can get, with an on/off switch per address, and "Get all" / "Stop all".
+     * "Get all" turns on every email at the primary address. New kinds of email appear here by themselves (the server lists them).
      */
     function emailsBox(u, statusBox) {
       var box = el('div', 'em');
@@ -375,21 +385,19 @@
           showStatus(statusBox, 'ok', 'Saved', res.lines);
         }, statusBox);
       };
-      var addr = el('p', 'em-addresses');
-      addr.appendChild(el('span', null, 'Primary: ')); addr.appendChild(el('b', null, u.email));
-      if (u.altEmail) { addr.appendChild(el('br')); addr.appendChild(el('span', null, 'Alternate: ')); addr.appendChild(el('b', null, u.altEmail)); }
-      box.appendChild(addr);
+      box.appendChild(el('p', 'em-lead', 'Tap an address to turn that email on or off there.'));
       var ul = el('ul', 'em-list');
       u.emails.forEach(function (t) {
         var li = el('li', 'em-type');
         var text = el('div', 'em-name'); text.appendChild(el('b', null, t.label)); text.appendChild(el('small', null, t.about));
         li.appendChild(text);
         var sw = el('div', 'em-switches');
-        [['primary', 'Primary']].concat(u.altEmail ? [['alt', 'Alternate']] : []).forEach(function (s) {
+        // One switch per address, labeled with the address. The alternate appears only when there is one.
+        [['primary', u.email]].concat(u.altEmail ? [['alt', u.altEmail]] : []).forEach(function (s) {
           var on = !!t[s[0]];
-          var b = button('em-switch', s[1] + (on ? ': on' : ': off'), function () { set({ type: t.key, slot: s[0], on: !on }); });
+          var b = button('em-switch', s[1], function () { set({ type: t.key, slot: s[0], on: !on }); });
           b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', on ? 'true' : 'false');
-          b.setAttribute('aria-label', t.label + ' to ' + (s[0] === 'alt' ? u.altEmail : u.email));
+          b.setAttribute('aria-label', t.label + ' to ' + s[1]);
           sw.appendChild(b);
         });
         li.appendChild(sw);
@@ -400,15 +408,16 @@
       all.appendChild(button('secondary small', 'Get all', function () { set({ type: 'all', slot: 'primary', on: true }); }));
       all.appendChild(button('secondary small', 'Stop all', function () { set({ type: 'all', slot: 'both', on: false }); }));
       box.appendChild(all);
-      box.appendChild(el('p', 'hint small', '“Get all” sends every email to the primary address. ' + (u.altEmail ? 'The alternate address gets only what is switched on.' : 'Add an alternate email to get them there too.')));
       return box;
     }
 
     /* ── how you sign in: make a Google account's email your primary email ── */
     function renderSignIn() {
       var box = $('signIn'), u = me(), who = state.who; clear(box);
-      $('signInCard').hidden = !u || u.owner;
-      if ($('signInCard').hidden) return;
+      // Only useful after a code sign-in, or a Google sign-in with an email that isn't the primary one.
+      var useful = u && !u.owner && (who.via === 'code' || who.email !== u.email);
+      $('signInCard').hidden = !useful;
+      if (!useful) return;
       var how = el('p', null, 'You signed in ' + (who.via === 'code' ? 'with a code emailed to ' : 'with Google as ') + who.email + '.' +
         (u.altEmail ? ' Both ' + u.email + ' and ' + u.altEmail + ' sign you in.' : ''));
       box.appendChild(how);
@@ -418,13 +427,13 @@
       TimeOffApi.googleButton(g, function (credential) {
         call('apiSwitchToGoogle', [credential], function (res) {
           if (!res.ok) { showStatus($('signInStatus'), 'error', 'Not changed', res.errors, true); return; }
-          state.flash = ['signInStatus', 'Done', res.lines];
+          state.flash = ['status', 'Done', res.lines]; // the sign-in card hides once Google is primary
           TimeOffApi.signInWith(credential); // carries on as the Google account, then loads the portal again
         }, $('signInStatus'));
       });
     }
 
-    /* ── site activity (super admins): visits, newest first, each with what was done ── */
+    /* ── site activity (super admins): visits, newest first, each with what the person did ── */
     var ACT_KIND = { 'in': 'Signed in', bad: 'Sign-in failed', open: 'Opened', 'do': 'Changed', no: 'Refused', out: 'Signed out' };
     function siteLabel(site) {
       if (!site) return '';
@@ -498,14 +507,15 @@
         firstName: u ? u.firstName : '', lastName: u ? u.lastName : '',
         altFirstNames: u ? (u.altFirstNames || []).join(', ') : '', altLastNames: u ? (u.altLastNames || []).join(', ') : '',
         gradYear: u ? u.gradYear : '', startYear: u ? u.startYear || '' : '', jobTitle: u ? u.jobTitle : '', phones: u && u.phones.length ? u.phones.slice() : [''],
-        attending: !!(u && u.attending), hpbFellow: !!(u && u.hpbFellow), superAdmin: !!(u && u.superAdmin), roles: roles,
+        kind: u ? kindOf(u) : '', superAdmin: !!(u && u.superAdmin), roles: roles,
       };
     }
-    /** Opens "Add a person"; from a sign-up, filled in with its details and the usual roles for a fellow or a viewer. */
+    /** Opens "Add a person". From a sign-up, it pre-fills the details, and makes a fellow a transplant fellow with Edit. */
     function startAdd(signup) {
       state.adding = true; state.editing = ''; state.draft = draftFor(null);
       if (signup) {
-        var d = state.draft, preset = presets().filter(function (p) { return p[0] === (signup.kind === 'fellow' ? 'Fellow' : 'Viewer everywhere'); })[0];
+        var d = state.draft, preset = presets().filter(function (p) { return p[0] === (signup.kind === 'fellow' ? 'Edit everywhere' : 'View everywhere'); })[0];
+        d.kind = signup.kind === 'fellow' ? 'fellow' : '';
         d.email = signup.email; d.firstName = signup.firstName; d.lastName = signup.lastName;
         d.gradYear = signup.gradYear || ''; d.jobTitle = signup.jobTitle || ''; d.phones = signup.phone ? [signup.phone] : [''];
         if (preset) Object.keys(preset[1]).forEach(function (k) { d.roles[k] = preset[1][k].slice(); });
@@ -538,8 +548,8 @@
       return (app.key === 'portal' ? [] : [{ key: '', label: 'None', with: [] }]).concat(roles);
     }
     /**
-     * Tapping a role: roles that combine (Fellow and Admin) are switched on and off together; any other choice stands
-     * alone. Switching off the last role leaves None (or Viewer in the portal).
+     * Tapping a role. Roles that combine (Edit and Admin) toggle independently; any other choice stands alone.
+     * Switching off the last role leaves None (View in the portal).
      */
     function tapRole(app, current, role) {
       if (!role.key) return [];
@@ -553,8 +563,8 @@
       var all = function (pick) { var r = {}; state.view.apps.forEach(function (a) { r[a.key] = pick(a); }); return r; };
       var has = function (a, k) { return a.roles.indexOf(k) !== -1; };
       return [
-        ['Fellow', all(function (a) { return has(a, 'fellow') ? ['fellow'] : has(a, 'viewer') ? ['viewer'] : []; })],
-        ['Viewer everywhere', all(function (a) { return has(a, 'viewer') ? ['viewer'] : []; })],
+        ['Edit everywhere', all(function (a) { return has(a, 'fellow') ? ['fellow'] : has(a, 'viewer') ? ['viewer'] : []; }), true],
+        ['View everywhere', all(function (a) { return has(a, 'viewer') ? ['viewer'] : []; })],
         ['Admin everywhere', all(function (a) { return has(a, 'admin') ? ['admin'] : []; })],
         ['No access', all(function (a) { return a.key === 'portal' ? ['viewer'] : []; })],
       ];
@@ -576,19 +586,19 @@
     }
 
     function personForm() {
-      var v = state.view, d = state.draft, fellow = Object.keys(d.roles).some(function (k) { return d.roles[k].indexOf('fellow') !== -1; });
-      var self = !v.me.canEdit; // editing their own information: no roles or ticks
+      var v = state.view, d = state.draft, fellow = fellowKind(d.kind);
+      var self = !v.me.canEdit; // editing their own information: not who they are, roles or super admin
       var form = el('div', 'person-form');
       var grid = el('div', 'pf-grid');
       grid.appendChild(field('First name', 'firstName', { max: 40 }));
-      grid.appendChild(field('Last name', 'lastName', { max: 40, hint: d.attending ? 'Living donor case titles use the last name.' : '' }));
+      grid.appendChild(field('Last name', 'lastName', { max: 40, hint: d.kind === 'attending' ? 'Living donor case titles use the last name.' : '' }));
       grid.appendChild(field('Primary email', 'email', { type: 'email', placeholder: 'name@gmail.com', disabled: d.owner || self, wide: true,
         hint: d.owner ? 'The fellowship account’s email can’t be changed.' : self ? 'Ask an admin to change your primary email.' : '' }));
       grid.appendChild(field('Alternate email', 'altEmail', { type: 'email', optional: true, placeholder: 'e.g. name@med.usc.edu', wide: true, hint: 'Optional. Can also sign in.' }));
       form.appendChild(grid);
-      if (!self) form.appendChild(rolesFieldset());
-      // Fellows (in any site) have a graduating year, and a start year if they haven't started yet; everyone else a job title.
-      // The years decide which academic years they count as a fellow in. Fellows can set their own.
+      if (!self) { form.appendChild(kindRow()); form.appendChild(rolesFieldset()); }
+      // Fellows have a graduating year, plus a start year until they start. Everyone else has a job title.
+      // The years decide which academic years count them as fellows. Fellows can set their own.
       var more = el('div', 'pf-grid pf-more-fields');
       if (fellow) {
         more.appendChild(field('Graduating year', 'gradYear', { inputmode: 'numeric', max: 4, placeholder: 'e.g. 2027',
@@ -615,11 +625,9 @@
       if (d.phones.length < MAX_PHONES) phones.appendChild(button('linkbtn pf-more', '+ Another number', function () { d.phones.push(''); rerenderForm(); }));
       form.appendChild(phones);
 
-      // Attending, HPB fellow, super admin (admins only)
+      // Super admin (admins see it; only super admins change it)
       if (!self) {
-        form.appendChild(checkRow('attending', 'Attending', ''));
-        if (fellow || d.hpbFellow) form.appendChild(checkRow('hpbFellow', 'HPB fellow', 'Can be on a service with one other fellow.'));
-        if (v.me.superAdmin && !d.owner) form.appendChild(checkRow('superAdmin', 'Super admin', 'Can do everything on every site, including making other super admins. Their roles above only matter for being a fellow.'));
+        if (v.me.superAdmin && !d.owner) form.appendChild(checkRow('superAdmin', 'Super admin', 'Can do everything on every site, including making other super admins. A fellow still needs Edit to appear as a fellow.'));
         else if (d.superAdmin) form.appendChild(el('p', 'pf-hint', d.owner ? 'The fellowship account is always a super admin.' : 'Super admin (only a super admin can change this).'));
       }
 
@@ -649,15 +657,45 @@
       return wrap;
     }
 
-    /** The roles in each site, with quick settings for the usual kinds of people. */
+    /**
+     * Who someone is: transplant fellow, HPB fellow or attending. At most one; tapping the chosen one clears it.
+     * Leaving a fellow kind turns their Edit roles into View, since only fellows may have Edit.
+     */
+    function kindRow() {
+      var v = state.view, d = state.draft, kinds = v.kinds || KINDS;
+      var box = el('fieldset', 'pf-roles pf-kind');
+      box.appendChild(el('legend', null, 'Who they are'));
+      var keys = el('div', 'keys rolekeys'); keys.style.setProperty('--n', kinds.length);
+      keys.setAttribute('role', 'group'); keys.setAttribute('aria-label', 'Who they are (one at most)');
+      kinds.forEach(function (k) {
+        var b = button('tab', k.label, function () {
+          d.kind = d.kind === k.key ? '' : k.key;
+          if (!fellowKind(d.kind)) v.apps.forEach(function (a) {
+            var r = (d.roles[a.key] || []).filter(function (x) { return x !== 'fellow'; });
+            d.roles[a.key] = r.length || !(d.roles[a.key] || []).length ? r : ['viewer'];
+          });
+          rerenderForm();
+        });
+        b.setAttribute('aria-pressed', d.kind === k.key ? 'true' : 'false');
+        keys.appendChild(b);
+      });
+      box.appendChild(keys);
+      box.appendChild(el('span', 'pf-hint', 'Choose none for coordinators and other staff. HPB fellows can share a service with one other fellow.'));
+      return box;
+    }
+
+    /** The roles in each site, with quick settings for the usual kinds of people. Edit is for fellows only. */
     function rolesFieldset() {
       var v = state.view, d = state.draft;
       var roles = el('fieldset', 'pf-roles');
       roles.appendChild(el('legend', null, 'What they can do'));
       var quick = el('div', 'pf-presets');
       quick.appendChild(el('span', 'pf-hint', 'Quick set:'));
+      var fellow = fellowKind(d.kind);
       presets().forEach(function (p) {
-        quick.appendChild(button('toggle', p[0], function () { Object.keys(p[1]).forEach(function (k) { d.roles[k] = p[1][k].slice(); }); rerenderForm(); }));
+        var b = button('toggle', p[0], function () { Object.keys(p[1]).forEach(function (k) { d.roles[k] = p[1][k].slice(); }); rerenderForm(); });
+        if (p[2] && !fellow) b.disabled = true;
+        quick.appendChild(b);
       });
       roles.appendChild(quick);
       v.apps.forEach(function (a) {
@@ -665,15 +703,17 @@
         row.appendChild(el('span', 'pf-app-name', a.label));
         var choices = roleChoices(a), now = d.roles[a.key] || [];
         var keys = el('div', 'keys rolekeys'); keys.style.setProperty('--n', choices.length);
-        keys.setAttribute('role', 'group'); keys.setAttribute('aria-label', a.label + ' (Fellow and Admin can both be chosen)');
+        keys.setAttribute('role', 'group'); keys.setAttribute('aria-label', a.label + ' (Edit and Admin can both be chosen)');
         choices.forEach(function (c) {
           var b = button('tab', c.label, function () { d.roles[a.key] = tapRole(a, now, c); rerenderForm(); });
           b.setAttribute('aria-pressed', (c.key ? now.indexOf(c.key) !== -1 : !now.length) ? 'true' : 'false');
+          if (c.key === 'fellow' && !fellow && now.indexOf('fellow') === -1) b.disabled = true;
           keys.appendChild(b);
         });
         row.appendChild(keys);
         roles.appendChild(row);
       });
+      if (!fellow) roles.appendChild(el('span', 'pf-hint', 'Edit is for fellows: it lets them request time off and puts them on the call schedule.'));
       return roles;
     }
     function checkRow(key, title, text) {
@@ -693,14 +733,16 @@
     }
 
     function save_() {
-      var d = state.draft, fellow = Object.keys(d.roles).some(function (k) { return d.roles[k].indexOf('fellow') !== -1; });
+      var d = state.draft, fellow = fellowKind(d.kind);
       var user = {
         email: d.email, altEmail: d.altEmail, firstName: d.firstName, lastName: d.lastName,
-        altFirstNames: d.altFirstNames, altLastNames: d.altLastNames, hpbFellow: d.hpbFellow,
+        altFirstNames: d.altFirstNames, altLastNames: d.altLastNames,
+        // kind decides; attending and hpbFellow follow from it (servers before 1.0 read only those two).
+        kind: d.kind, attending: d.kind === 'attending', hpbFellow: d.kind === 'hpb',
         // Fellows have a graduating year (and maybe a start year); everyone else a job title.
         gradYear: fellow ? d.gradYear : '', startYear: fellow ? d.startYear : '', jobTitle: fellow ? '' : d.jobTitle,
         phones: d.phones.map(function (p) { return p.trim(); }).filter(Boolean),
-        attending: d.attending, superAdmin: d.superAdmin, roles: d.roles,
+        superAdmin: d.superAdmin, roles: d.roles,
       };
       call('apiPortalChange', [d.id ? { type: 'edit', id: d.id, user: user } : { type: 'add', user: user }], function (res) {
         if (!res.ok) { showStatus($('formStatus'), 'error', 'Not saved', res.errors, true); return; }

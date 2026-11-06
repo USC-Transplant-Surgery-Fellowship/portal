@@ -17,9 +17,11 @@
 </head>
 <body>
   <!--
-    The page an invitation email links to (welcome.html?invite=…; invitations.gs on the server). It says who the
-    invitation is for, then they sign in with Google or an emailed code. With the invited email they're simply in. With
-    another email, it asks first, then makes that email their primary one and keeps the invited one as their alternate.
+    The invitation email links here: welcome.html?invite=… (server: invitations.gs).
+    The page names the invited person. They sign in with Google or an emailed code.
+    Signing in with the invited email signs them in with no other change.
+    Signing in with another email asks first. Then that email becomes primary and the invited one becomes the alternate.
+    Without an invitation, the page opens the portal.
   -->
   <header class="top">
     <div class="top-inner">
@@ -73,7 +75,7 @@
     function only(id) { ['confirmCard', 'doneCard', 'problemCard'].forEach(function (c) { $(c).hidden = c !== id; }); }
     function problem(lines) { only('problemCard'); showStatus($('problem'), 'error', '', lines); }
     function done(text) {
-      // Ask again: if the email just changed, the sites they can open are the new primary email's.
+      // Ask again. After a switch, the new primary email decides which sites they can open.
       TimeOffApi.run('apiWhoAmI', ['portal'], function (who) {
         only('doneCard');
         $('inviteCard').hidden = true;
@@ -106,19 +108,13 @@
     $('confirmNo').addEventListener('click', function () { TimeOffApi.signOut(); });
     $('problemSignOut').addEventListener('click', function () { TimeOffApi.signOut(); });
 
-    function ready(who) {
-      if (!token) {
-        if (who.status === 'member') done(''); else problem(['This page needs the link from your invitation email.', who.message].filter(Boolean));
-        return;
-      }
-      accept(false);
-    }
+    function ready() { accept(false); }
     function start(message) {
       TimeOffApi.start({ app: 'portal', need: 'any', years: false, onReady: ready,
         signInMessage: message || 'Sign in with Google, or with a code we email you, to accept.' });
     }
 
-    if (!token) { $('inviteText').textContent = 'Sign in to open the sites.'; start('Sign in with Google, or with a code we email you.'); return; }
+    if (!token) { location.replace('./'); return; } // no invitation: the portal itself is the place to sign in
     TimeOffApi.callPublic('apiInviteInfo', [token]).then(function (info) {
       if (!info.ok) { $('inviteTitle').textContent = 'About your invitation'; $('inviteText').textContent = info.message; start(); return; }
       $('inviteTitle').textContent = 'Welcome, ' + info.firstName;
@@ -128,7 +124,7 @@
       $('inviteHow').hidden = false;
       $('inviteHow').textContent = 'Sign in below with ' + info.email + ', or with another email or Google account you’d rather use. ' +
         'Another one becomes your main email, and ' + info.email + ' is kept as a second email that also signs in.';
-      // The emailed code is offered for the invited address (the sign-in card fills in the last email used).
+      // Pre-fill the code form with the invited address. The sign-in card uses the last email entered.
       try { localStorage.setItem('fellowship.lastEmail', info.email); } catch (e) { /* private mode */ }
       start();
     }, function (err) { $('inviteText').textContent = err.message; start(); });
