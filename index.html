@@ -40,6 +40,18 @@
         <div class="keys filters" role="radiogroup" aria-label="Show" id="filters"></div>
       </section>
 
+      <section class="card" id="emails">
+        <h2>Emails you get</h2>
+        <div class="status" id="emailsStatus" role="status" aria-live="polite"></div>
+        <div id="emailList"><div class="loading">Loading…</div></div>
+      </section>
+
+      <section class="card" id="signInCard" hidden>
+        <h2>How you sign in</h2>
+        <div class="status" id="signInStatus" role="status" aria-live="polite"></div>
+        <div id="signIn"></div>
+      </section>
+
       <section class="card" id="sharingCard" hidden>
         <h2>Calendar sharing</h2>
         <p class="hint">Share view-only Google calendars with fellows.</p>
@@ -67,14 +79,28 @@
         <div id="addForm"></div>
         <div id="people"><div class="loading">Loading…</div></div>
       </section>
+
+      <section class="card" id="activityCard" hidden>
+        <div class="people-title">
+          <h2>Site activity</h2>
+          <button class="secondary small" id="activityLoad" type="button">Show</button>
+        </div>
+        <p class="hint">Super admins only: who used the sites, when, for how long, and what they changed. Signing in and out,
+          opening a site, every change and anything refused are recorded. Looking around is only noted to tell how long they stayed.</p>
+        <label class="label" for="activityWho">Whose</label>
+        <select id="activityWho"><option value="">Everyone</option></select>
+        <div class="status" id="activityStatus" role="status" aria-live="polite"></div>
+        <div id="activity"></div>
+      </section>
     </div>
   </main>
 
   <script>
   (function () {
     var $ = UI.$, el = UI.el, clear = UI.clear, button = UI.button, plural = UI.plural, showStatus = UI.showStatus;
-    var state = { view: null, who: null, filter: 'all', q: '', editing: '', draft: null, busy: false };
-    var FILTERS = [['all', 'Everyone'], ['fellows', 'Fellows'], ['attendings', 'Attendings'], ['admins', 'Admins'], ['attention', 'Needs attention', true]];
+    var state = { view: null, who: null, filter: 'all', q: '', editing: '', draft: null, busy: false, emailsFor: '', flash: null };
+    var FILTERS = [['all', 'Everyone'], ['fellows', 'Fellows'], ['attendings', 'Attendings'], ['admins', 'Admins'], ['attention', 'Needs attention', true],
+      ['notsigned', 'Not signed in', true]];
     var MAX_PHONES = 5;
 
     /* ── server calls (one at a time) ── */
@@ -86,14 +112,20 @@
         if (err.code !== 'auth') showStatus(box || $('status'), 'error', 'Something went wrong', [err.message], true);
       });
     }
-    function load() { call('apiPortalGet', [], function (v) { state.view = v; render(); }); }
+    function load() {
+      call('apiPortalGet', [], function (v) {
+        state.view = v; render();
+        if (state.flash) { showStatus($(state.flash[0]), 'ok', state.flash[1], state.flash[2], true); state.flash = null; }
+        else if (location.hash === '#emails' && $('emails').scrollIntoView) $('emails').scrollIntoView({ block: 'start' });
+      });
+    }
 
     /* ── who's who ── */
-    function appLabel(key) { return (state.view.apps.filter(function (a) { return a.key === key; })[0] || { label: key }).label; }
     function roleLabel(key) { return (state.view.roles.filter(function (r) { return r.key === key; })[0] || { label: key }).label; }
     function isFellow(u) { return Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; }); }
     function isAdmin(u) { return u.superAdmin || Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('admin') !== -1; }); }
     function needsAttention(u) { return u.missing.length > 0; }
+    function notSignedIn(u) { return !u.owner && !u.signedInAt; }
     /** Each site on its own line: "Time off: Fellow, Admin". */
     function rolesBox(u) {
       var box = el('div', 'person-roles');
@@ -123,6 +155,7 @@
       if (f === 'attendings' && !u.attending) return false;
       if (f === 'admins' && !isAdmin(u)) return false;
       if (f === 'attention' && !needsAttention(u)) return false;
+      if (f === 'notsigned' && !notSignedIn(u)) return false;
       q = String(q || '').trim().toLowerCase();
       if (!q) return true;
       var digits = q.replace(/\D/g, '');
@@ -137,6 +170,9 @@
       $('sharingCard').hidden = !admin;
       $('logCard').hidden = !admin;
       if (admin) { renderSharing(); UI.fillLog($('log'), v.log); }
+      renderMyEmails();
+      renderSignIn();
+      $('activityCard').hidden = !v.me.superAdmin;
       renderSignups();
       renderFilters();
       renderAddForm();
@@ -242,6 +278,25 @@
         box.appendChild(sec);
       });
       if (!shown.length) box.appendChild(el('p', 'empty', state.q ? 'Nobody matches “' + state.q + '”.' : 'Nobody here.'));
+      if (v.me.canEdit && state.filter === 'notsigned' && shown.length) box.insertBefore(bulkInvite(shown), box.firstChild);
+    }
+
+    /* ── invitations (admins): an email saying what the sites are for, with a link to sign in (welcome.html) ── */
+    function invite(ids) {
+      call('apiPortalInvite', [ids], function (res) {
+        if (!res.ok) { showStatus($('status'), 'error', 'Not sent', res.errors, true); return; }
+        state.view = res.view; render();
+        showStatus($('status'), 'ok', 'Sent', res.lines, true);
+      });
+    }
+    function bulkInvite(shown) {
+      var box = el('div', 'bulk-invite');
+      var ids = shown.map(function (u) { return u.id; }).slice(0, 40);
+      box.appendChild(el('p', 'hint small', 'An invitation says what the sites are for and links to a page where they sign in. ' +
+        'Anyone who used the sites before November 2026 shows here until they next sign in.'));
+      box.appendChild(UI.confirmButton('secondary small', 'Invite ' + (ids.length === 1 ? 'this person' : 'all ' + ids.length + ' shown'),
+        'Tap again to email ' + plural(ids.length, 'invitation'), function () { invite(ids); }));
+      return box;
     }
 
     function personItem(u) {
@@ -254,6 +309,7 @@
       if (u.superAdmin) name.appendChild(el('span', 'chip ok', u.owner ? 'Fellowship account' : 'Super admin'));
       if (u.attending) name.appendChild(el('span', 'chip muted', 'Attending'));
       if (u.hpbFellow) name.appendChild(el('span', 'chip muted', 'HPB fellow'));
+      if (admin && notSignedIn(u)) name.appendChild(el('span', 'chip warn', u.invitedAt ? 'Invited ' + u.invitedAt.split(' ')[1] : 'Not signed in yet'));
       main.appendChild(name);
       var sub = isFellow(u) ? fellowYears(u) : (u.jobTitle || '');
       if (sub) main.appendChild(el('div', 'person-sub', sub));
@@ -263,6 +319,12 @@
       main.appendChild(contact);
       main.appendChild(rolesBox(u));
       if (admin && u.missing.length) main.appendChild(el('div', 'person-warn', 'Missing: ' + u.missing.join(', ') + '. Edit to fill it in.'));
+      if (admin && state.emailsFor === u.id) {
+        var panel = el('div', 'em-panel');
+        panel.appendChild(el('h4', null, 'Emails ' + (u.firstName || u.name) + ' gets'));
+        panel.appendChild(emailsBox(u, $('status')));
+        main.appendChild(panel);
+      }
       li.appendChild(main);
       if (!admin && u.id === v.me.id) {
         // Everyone can keep their own information up to date (not their roles).
@@ -274,6 +336,14 @@
         var actions = el('div', 'person-actions');
         var lockedSuper = u.superAdmin && !v.me.superAdmin;
         if (!lockedSuper) actions.appendChild(button('secondary small', 'Edit', function () { startEdit(u); }));
+        if (!lockedSuper && u.emails.length) {
+          var eb = button('secondary small', 'Emails', function () { state.emailsFor = state.emailsFor === u.id ? '' : u.id; renderPeople(); });
+          eb.setAttribute('aria-expanded', state.emailsFor === u.id ? 'true' : 'false');
+          actions.appendChild(eb);
+        }
+        if (notSignedIn(u) && u.id !== v.me.id) {
+          actions.appendChild(UI.confirmButton('secondary small', u.invitedAt ? 'Invite again' : 'Invite', 'Tap again to email', function () { invite([u.id]); }));
+        }
         if (!u.owner && u.id !== v.me.id && !lockedSuper) {
           actions.appendChild(UI.confirmButton('secondary small', 'Remove', 'Tap again to remove', function () {
             call('apiPortalChange', [{ type: 'remove', id: u.id }], afterChange);
@@ -282,6 +352,141 @@
         if (actions.firstChild) li.appendChild(actions);
       }
       return li;
+    }
+
+    /* ── emails: which automatic emails someone gets, at which address (saved as soon as they're tapped) ── */
+    function me() { var v = state.view; return v.users.filter(function (u) { return u.id === v.me.id; })[0]; }
+    function renderMyEmails() {
+      var box = $('emailList'), u = me(); clear(box);
+      if (!u) { box.appendChild(el('p', 'empty', 'You aren’t on the member list.')); return; }
+      box.appendChild(emailsBox(u, $('emailsStatus')));
+    }
+    /**
+     * Each email someone can get, with a switch for each of their addresses, and "Get all" / "Stop all". New kinds of
+     * automatic email appear here by themselves (the server lists them).
+     */
+    function emailsBox(u, statusBox) {
+      var box = el('div', 'em');
+      if (!u.emails.length) { box.appendChild(el('p', 'empty', 'There are no automatic emails for ' + (u.id === state.view.me.id ? 'you' : u.name) + ' yet.')); return box; }
+      var set = function (change) {
+        call('apiPortalSetEmails', [u.id, change], function (res) {
+          if (!res.ok) { showStatus(statusBox, 'error', 'Not changed', res.errors, true); return; }
+          state.view = res.view; render();
+          showStatus(statusBox, 'ok', 'Saved', res.lines);
+        }, statusBox);
+      };
+      var addr = el('p', 'em-addresses');
+      addr.appendChild(el('span', null, 'Primary: ')); addr.appendChild(el('b', null, u.email));
+      if (u.altEmail) { addr.appendChild(el('br')); addr.appendChild(el('span', null, 'Alternate: ')); addr.appendChild(el('b', null, u.altEmail)); }
+      box.appendChild(addr);
+      var ul = el('ul', 'em-list');
+      u.emails.forEach(function (t) {
+        var li = el('li', 'em-type');
+        var text = el('div', 'em-name'); text.appendChild(el('b', null, t.label)); text.appendChild(el('small', null, t.about));
+        li.appendChild(text);
+        var sw = el('div', 'em-switches');
+        [['primary', 'Primary']].concat(u.altEmail ? [['alt', 'Alternate']] : []).forEach(function (s) {
+          var on = !!t[s[0]];
+          var b = button('em-switch', s[1] + (on ? ': on' : ': off'), function () { set({ type: t.key, slot: s[0], on: !on }); });
+          b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', on ? 'true' : 'false');
+          b.setAttribute('aria-label', t.label + ' to ' + (s[0] === 'alt' ? u.altEmail : u.email));
+          sw.appendChild(b);
+        });
+        li.appendChild(sw);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      var all = el('div', 'em-all');
+      all.appendChild(button('secondary small', 'Get all', function () { set({ type: 'all', slot: 'primary', on: true }); }));
+      all.appendChild(button('secondary small', 'Stop all', function () { set({ type: 'all', slot: 'both', on: false }); }));
+      box.appendChild(all);
+      box.appendChild(el('p', 'hint small', '“Get all” sends every email to the primary address. ' + (u.altEmail ? 'The alternate address gets only what is switched on.' : 'Add an alternate email to get them there too.')));
+      return box;
+    }
+
+    /* ── how you sign in: make a Google account's email your primary email ── */
+    function renderSignIn() {
+      var box = $('signIn'), u = me(), who = state.who; clear(box);
+      $('signInCard').hidden = !u || u.owner;
+      if ($('signInCard').hidden) return;
+      var how = el('p', null, 'You signed in ' + (who.via === 'code' ? 'with a code emailed to ' : 'with Google as ') + who.email + '.' +
+        (u.altEmail ? ' Both ' + u.email + ' and ' + u.altEmail + ' sign you in.' : ''));
+      box.appendChild(how);
+      box.appendChild(el('p', 'hint', 'To use a Google account instead, choose it below. Its email becomes your primary email, and ' + u.email +
+        ' becomes your alternate, so it still signs in' + (u.altEmail ? ' (in place of ' + u.altEmail + ')' : '') + '. Your emails go to the new primary email.'));
+      var g = el('div', 'gsi-button'); box.appendChild(g);
+      TimeOffApi.googleButton(g, function (credential) {
+        call('apiSwitchToGoogle', [credential], function (res) {
+          if (!res.ok) { showStatus($('signInStatus'), 'error', 'Not changed', res.errors, true); return; }
+          state.flash = ['signInStatus', 'Done', res.lines];
+          TimeOffApi.signInWith(credential); // carries on as the Google account, then loads the portal again
+        }, $('signInStatus'));
+      });
+    }
+
+    /* ── site activity (super admins): visits, newest first, each with what was done ── */
+    var ACT_KIND = { 'in': 'Signed in', bad: 'Sign-in failed', open: 'Opened', 'do': 'Changed', no: 'Refused', out: 'Signed out' };
+    function siteLabel(site) {
+      if (!site) return '';
+      var key = site.replace(/-admin$/, ''), app = (state.view.apps.filter(function (a) { return a.key === key; })[0] || { label: key }).label;
+      return app + (/-admin$/.test(site) ? ' admin' : '');
+    }
+    function when(t, timeOnly) {
+      var tz = (state.activity && state.activity.timeZone) || undefined; // the fellowship's time zone, from the server
+      return new Date(t * 1000).toLocaleString('en-US', timeOnly ? { timeZone: tz, hour: 'numeric', minute: '2-digit' }
+        : { timeZone: tz, weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    function howLong(sec) { var m = Math.round(sec / 60); return m < 1 ? 'under a minute' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; }
+    function loadActivity() {
+      call('apiActivityGet', [{ email: $('activityWho').value }], renderActivity, $('activityStatus'));
+    }
+    function renderActivity(a) {
+      state.activity = a;
+      var box = $('activity'), sel = $('activityWho'), keep = sel.value; clear(box);
+      $('activityLoad').textContent = 'Refresh';
+      showStatus($('activityStatus'));
+      clear(sel); sel.appendChild(el('option', null, 'Everyone')).value = '';
+      a.people.forEach(function (p) { var o = el('option', null, p.name); o.value = p.email; sel.appendChild(o); });
+      sel.value = keep;
+      if (!a.since) { box.appendChild(el('p', 'empty', 'Nothing recorded yet.')); return; }
+      box.appendChild(el('p', 'hint small', 'Recorded since ' + when(a.since) + '. A visit ends when someone signs out or after ' + a.gapMinutes +
+        ' minutes without anything. Visits with Google start when the first site opens (Google sign-ins themselves aren’t seen).'));
+      if (!keep) {
+        var t = el('table', 'act-people'), head = el('tr');
+        ['Person', 'Visits', 'Time', 'Last seen'].forEach(function (h) { head.appendChild(el('th', null, h)); });
+        t.appendChild(head);
+        a.people.forEach(function (p) {
+          var tr = el('tr');
+          [p.name, String(p.visits), howLong(p.seconds), when(p.last)].forEach(function (x) { tr.appendChild(el('td', null, x)); });
+          t.appendChild(tr);
+        });
+        var wrap = el('div', 'act-table'); wrap.appendChild(t); box.appendChild(wrap);
+      }
+      var ul = el('ul', 'act-visits');
+      a.visits.forEach(function (v) {
+        var li = el('li'), d = el('details'), sum = el('summary');
+        sum.appendChild(el('b', null, v.name));
+        var later = Math.floor(v.end / 60) > Math.floor(v.start / 60);
+        sum.appendChild(document.createTextNode(' · ' + when(v.start) + (later ? '–' + when(v.end, true) : '') + ' (' + howLong(v.seconds) + ')'));
+        if (v.active) sum.appendChild(el('span', 'chip ok', 'Now'));
+        sum.appendChild(el('span', 'act-sub', [v.via.length ? 'With ' + v.via.join(' and ') : '', v.sites.map(siteLabel).join(', '),
+          v.signedOut ? 'signed out' : ''].filter(Boolean).join(' · ')));
+        d.appendChild(sum);
+        var evs = el('ol', 'act-events');
+        v.events.filter(function (e) { return e.kind !== 'seen'; }).forEach(function (e) { // "still here" only measures the visit
+          var row = el('li', 'act-' + e.kind);
+          row.appendChild(el('span', 'act-time', when(e.t, true)));
+          row.appendChild(el('b', null, ACT_KIND[e.kind] || e.kind));
+          var text = [siteLabel(e.site), e.kind === 'out' || e.kind === 'in' ? '' : e.what].filter(Boolean).join(': ');
+          if (text) row.appendChild(document.createTextNode(' ' + text));
+          evs.appendChild(row);
+        });
+        d.appendChild(evs);
+        li.appendChild(d);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      if (a.more) box.appendChild(el('p', 'hint small', 'Showing the latest ' + a.visits.length + ' visits. Choose a person to see theirs.'));
     }
 
     /* ── adding and editing ── */
@@ -511,6 +716,8 @@
     }
 
     /* ── wiring ── */
+    $('activityLoad').addEventListener('click', loadActivity);
+    $('activityWho').addEventListener('change', function () { if ($('activity').firstChild) loadActivity(); });
     $('search').addEventListener('input', function (e) { state.q = e.target.value; if (state.view) renderPeople(); });
     $('addBtn').addEventListener('click', function () {
       startAdd(null);

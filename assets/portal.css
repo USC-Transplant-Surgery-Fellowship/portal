@@ -7,7 +7,8 @@
 @media (max-width: 959px) {
   main.portal:not([hidden]) { display: flex; flex-direction: column; }
   main.portal > .col { display: contents; }
-  #findCard { order: 1; } #peopleCard { order: 2; } #sitesCard { order: 3; } #sharingCard { order: 4; } #logCard { order: 5; }
+  #findCard { order: 1; } #peopleCard { order: 2; } #sitesCard { order: 3; } #emails { order: 4; } #signInCard { order: 5; }
+  #sharingCard { order: 6; } #logCard { order: 7; } #activityCard { order: 8; }
 }
 
 /* ── your sites ── */
@@ -18,6 +19,56 @@
 .sites .site-link::after { content: '›'; margin-left: auto; padding-left: 8px; font-size: 20px; line-height: 1; }
 .sites .site-admin { flex: 0 0 auto; color: var(--accent); background: var(--sheet); border: 1.5px solid var(--accent); box-shadow: 0 2px 0 var(--cardinal-soft); }
 .sites a:active { transform: translateY(2px); box-shadow: none; }
+
+/* ── emails you get ── */
+#emails { scroll-margin-top: 12px; }
+.em-addresses { font-size: 14px; color: var(--muted); margin: 0 0 10px; overflow-wrap: anywhere; }
+.em-addresses b { color: var(--ink); font-weight: 700; }
+.em-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.em-type { padding: 10px 0; border-top: 1px solid var(--line); }
+.em-type:first-child { border-top: 0; padding-top: 0; }
+.em-name b { display: block; font-size: 15px; }
+.em-name small { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.em-switches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.em-switch {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 10px;
+  font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer;
+  background: var(--sheet); border: 1.5px solid var(--line-strong); border-radius: 999px;
+}
+.em-switch::before { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; box-sizing: border-box; }
+.em-switch[aria-checked="true"] { color: #fff; background: var(--cardinal); border-color: var(--cardinal); }
+.em-switch[aria-checked="true"]::before { background: var(--gold); border-color: var(--gold); }
+.em-switch:hover { border-color: var(--muted); }
+.em-all { display: flex; gap: 8px; }
+.em-all .secondary { flex: 1 1 0; margin: 0; }
+.em .hint.small { margin: 8px 0 0; }
+.em-panel { margin-top: 10px; padding: 10px 12px; background: var(--sheet-sunk); border: 1px solid var(--line); border-radius: 8px; }
+.em-panel h4 { margin: 0 0 6px; font-size: 15px; }
+#signInCard .gsi-button { min-height: 44px; margin: 4px 0 0; }
+#signInCard p { overflow-wrap: anywhere; }
+
+/* ── site activity (super admins) ── */
+#activityCard { margin-top: 16px; }
+#activityWho { margin-bottom: 10px; }
+.act-table { overflow-x: auto; margin: 6px 0 14px; }
+.act-people { width: 100%; border-collapse: collapse; font-size: 14px; }
+.act-people th { text-align: left; font-size: 13px; color: var(--muted); padding: 4px 8px 4px 0; border-bottom: 2px dotted var(--line-strong); }
+.act-people td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.act-visits { list-style: none; margin: 0; padding: 0; }
+.act-visits > li { border-top: 1px solid var(--line); padding: 8px 0; }
+.act-visits summary { cursor: pointer; font-size: 15px; overflow-wrap: anywhere; }
+.act-visits summary .chip { margin-left: 6px; }
+.act-sub { display: block; font-size: 13px; color: var(--muted); margin-left: 18px; }
+.act-events { list-style: none; margin: 6px 0 0 18px; padding: 0; font-size: 14px; }
+.act-events li { padding: 3px 0; overflow-wrap: anywhere; }
+.act-time { display: inline-block; min-width: 72px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.act-events b { margin-right: 4px; }
+.act-no b, .act-bad b { color: var(--err); }
+
+/* ── invitations ── */
+.chip.warn { background: var(--gold-soft); color: var(--ink); border: 1px solid var(--gold-edge); }
+.bulk-invite { background: var(--sheet-sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; }
+.bulk-invite .hint.small { margin: 0 0 8px; }
 
 /* ── finding people ── */
 #search { margin-bottom: 12px; }

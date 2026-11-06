@@ -13,7 +13,7 @@ jobs:
   compare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Get the time-off site (the same branch name if it has it, else main)
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
