@@ -12,13 +12,13 @@
   </p>
   <script>
   /*
-   * One sign-in for the fellowship sites. Each site's api.js opens this page in a hidden frame and asks it, by message:
-   *   { type: 'get', id }          → { id, token }   the saved sign-in token, or '' if there is none (or it expired)
-   *   { type: 'set', id, token }   → { id, ok }      saves a token after someone signs in
-   *   { type: 'clear', id }        → { id, ok }      forgets it (Sign out, or the server refused it)
-   * Only the sites below may ask, and only sign-ins for these sites are saved: Google's (for the sites' sign-in client,
-   * lasting an hour) or the sites' own after an emailed code (lasting days). The server checks every token on every
-   * request; this page only keeps it, in this browser (on this page's address), until it expires.
+   * One sign-in for the fellowship sites. Each site's api.js opens this page in a hidden frame and sends messages:
+   *   { type: 'get', id }          → { id, token }   The saved token, or '' if none or expired.
+   *   { type: 'set', id, token }   → { id, ok }      Saves a token after a sign-in.
+   *   { type: 'clear', id }        → { id, ok }      Forgets the token, after Sign out or a refusal.
+   * Only the SITES below may send messages.
+   * It saves only these sites' tokens: Google's for the sites' client (an hour) or the sites' own code tokens (days).
+   * The server checks every token on every request. This page only stores it in this browser until it expires.
    */
   (function () {
     var SITES = ['https://timeoff.usctransplant.life', 'https://schedule.usctransplant.life', 'https://portal.usctransplant.life'];
@@ -58,7 +58,7 @@
       else return;
       e.source.postMessage(reply, e.origin);
     });
-    // Tells the page it can start asking (nothing secret in it, so any page that opens this one may hear it).
+    // Tells the parent page to start asking. The message holds nothing secret, so any parent may receive it.
     if (window.parent !== window) window.parent.postMessage({ type: 'hub-ready' }, '*');
   })();
   </script>

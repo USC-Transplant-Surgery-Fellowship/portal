@@ -1,6 +1,6 @@
 /*
- * Portal only. The shared look (pager header, colors, sheets, keys, buttons, light/dark) is in styles.css,
- * which is the same file on all three sites (time off, call schedule, portal) — change it in all of them together.
+ * Portal only. styles.css holds the shared look: pager header, colors, sheets, keys, buttons, light and dark.
+ * styles.css is identical on all three sites. Change it in all three repositories together.
  */
 
 /* ── layout: phones keep one column in this order; computers get two columns (styles.css: main.split) ── */
@@ -22,8 +22,6 @@
 
 /* ── emails you get ── */
 #emails { scroll-margin-top: 12px; }
-.em-addresses { font-size: 14px; color: var(--muted); margin: 0 0 10px; overflow-wrap: anywhere; }
-.em-addresses b { color: var(--ink); font-weight: 700; }
 .em-list { list-style: none; margin: 0 0 12px; padding: 0; }
 .em-type { padding: 10px 0; border-top: 1px solid var(--line); }
 .em-type:first-child { border-top: 0; padding-top: 0; }
@@ -31,11 +29,11 @@
 .em-name small { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .em-switches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .em-switch {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 10px;
-  font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; max-width: 100%; padding: 6px 14px 6px 10px;
+  font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; text-align: left; overflow-wrap: anywhere;
   background: var(--sheet); border: 1.5px solid var(--line-strong); border-radius: 999px;
 }
-.em-switch::before { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; box-sizing: border-box; }
+.em-switch::before { content: ''; flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; box-sizing: border-box; }
 .em-switch[aria-checked="true"] { color: #fff; background: var(--cardinal); border-color: var(--cardinal); }
 .em-switch[aria-checked="true"]::before { background: var(--gold); border-color: var(--gold); }
 .em-switch:hover { border-color: var(--muted); }
@@ -143,6 +141,8 @@ input[type="tel"] {
 .pf-more { color: var(--accent); font-weight: 700; text-decoration: none; min-height: 36px; }
 .pf-roles { border: 0; margin: 14px 0; padding: 12px 0; border-top: 2px dotted var(--line-strong); border-bottom: 2px dotted var(--line-strong); min-width: 0; }
 .pf-roles legend { font-weight: 800; font-size: 16px; padding: 0; margin-bottom: 6px; }
+.pf-kind { border-bottom: 0; margin-bottom: 0; }  /* the roles below draw the line between them */
+.pf-roles button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .pf-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
 .pf-presets .pf-hint { margin: 0 4px 0 0; }
 .toggle {
