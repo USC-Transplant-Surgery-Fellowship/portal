@@ -22,7 +22,6 @@
 
 /* ── emails you get ── */
 #emails { scroll-margin-top: 12px; }
-.em-lead { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
 .em-list { list-style: none; margin: 0 0 12px; padding: 0; }
 .em-type { padding: 10px 0; border-top: 1px solid var(--line); }
 .em-type:first-child { border-top: 0; padding-top: 0; }
