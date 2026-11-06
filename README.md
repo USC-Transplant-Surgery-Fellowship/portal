@@ -4,15 +4,22 @@ The member list for the USC Transplant Surgery Fellowship's sites: **https://por
 
 - **Everyone on the member list** sees it: names, emails, phone numbers, fellowship years or job titles, and what each
   person can do on each site — with links to the sites they can use. Each person can edit their own information
-  (not their primary email, roles or ticks).
+  (not their primary email, roles or ticks), choose which automatic emails they get at each of their addresses
+  (**Emails you get**; the schedule emails link to it as `/#emails`), and make a Google account's email their primary
+  email (**How you sign in**).
 - **Admins** add, edit and remove people and set their role on each site (time off, call schedule, portal): none,
   viewer, fellow and/or admin. They mark **attendings** (offered by last name when adding a living donor case) and
   **HPB fellows** (who may share a service with another fellow), set fellows' **start and graduating years** (fellows can set their own too; a fellow
   counts from August of their start year through July 31 of their graduating year, so incoming fellows are added in
   the spring and graduates drop out on Aug 1 by themselves), approve or decline **sign-ups**, share the calendars
-  with every fellow, and see the recent changes. Only a super admin can make or change super admins.
+  with every fellow, change anyone's emails, **invite** people who haven't signed in yet, and see the recent changes.
+  Only a super admin can make or change super admins.
 - **New people** sign up at `/signup.html`: they sign in (with Google, or a code emailed to any address) and say who
   they are; an admin approves them. The page also explains how to make a Google account with a non-Gmail address.
+- **Invited people** land on `/welcome.html?invite=…` (the link in their invitation email): it says what the sites are
+  for, and they sign in with the invited email or another one (which then becomes their primary email).
+- **https://usctransplant.life** (and www) forwards here: Squarespace → Domains → usctransplant.life → Website →
+  Domain forwarding.
 
 It also holds `session.html`, which keeps the sign-in for all three sites: sign in on any of them and you are
 signed in on the others; Sign out on any of them signs out of all, including pages already open.
@@ -35,6 +42,7 @@ pages — no personal data.
 |---|---|
 | `index.html` | The portal |
 | `signup.html` | Signing up (and how to make a Google account with any email address) |
+| `welcome.html` | Where invitation emails link: accepting an invitation |
 | `session.html` | The shared sign-in (opened invisibly by every page of the three sites) |
 | `assets/portal.css` | Styles used only by this site |
 | `assets/styles.css`, `assets/ui.js`, `assets/api.js`, `assets/fonts/` | **Shared with the time-off and schedule sites** — keep identical in all three repositories (a GitHub check compares them) |

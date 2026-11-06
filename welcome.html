@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Welcome to the Fellowship Sites</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23990000'/%3E%3Crect x='5' y='7' width='22' height='13' rx='3' fill='%23c3ce9c'/%3E%3Cpath d='M8 11h2v2H8zm3 0h2v2h-2zm3 0h2v2h-2zm-6 4h2v2H8zm3 0h2v2h-2z' fill='%23232c17'/%3E%3Crect x='9' y='24' width='14' height='3' rx='1.5' fill='%23ffcc00'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#990000">
+  <link rel="preload" href="assets/fonts/doto.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/portal.css">
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="assets/ui.js"></script>
+  <script src="assets/api.js"></script>
+</head>
+<body>
+  <!--
+    The page an invitation email links to (welcome.html?invite=…; invitations.gs on the server). It says who the
+    invitation is for, then they sign in with Google or an emailed code. With the invited email they're simply in. With
+    another email, it asks first, then makes that email their primary one and keeps the invited one as their alternate.
+  -->
+  <header class="top">
+    <div class="top-inner">
+      <div class="lcd">
+        <div class="eyebrow">USC Transplant Surgery Fellowship</div>
+        <h1>Welcome</h1>
+      </div>
+      <div class="who" id="who"></div>
+    </div>
+  </header>
+
+  <main class="page signup">
+    <section class="card" id="inviteCard">
+      <h2 id="inviteTitle">You’re invited</h2>
+      <p id="inviteText">Checking your invitation…</p>
+      <ul class="steps" id="inviteSteps" hidden></ul>
+      <p class="hint" id="inviteHow" hidden></p>
+    </section>
+
+    <div id="auth"><section class="card"><div class="loading">Loading…</div></section></div>
+
+    <div id="app" hidden>
+      <section class="card" id="confirmCard" hidden>
+        <h2>Use this email?</h2>
+        <p id="confirmText"></p>
+        <button class="primary" id="confirmYes" type="button"></button>
+        <button class="secondary" id="confirmNo" type="button"></button>
+        <div class="status" id="confirmStatus" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="card" id="doneCard" hidden>
+        <h2 id="doneTitle">You’re all set</h2>
+        <p id="doneText"></p>
+        <ul class="sites" id="sites"></ul>
+      </section>
+
+      <section class="card" id="problemCard" hidden>
+        <h2>That didn’t work</h2>
+        <div class="status" id="problem" role="status" aria-live="polite"></div>
+        <button class="secondary" id="problemSignOut" type="button">Sign in with a different account</button>
+      </section>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    var $ = UI.$, el = UI.el, clear = UI.clear, showStatus = UI.showStatus;
+    var token = '';
+    try { token = new URLSearchParams(location.search).get('invite') || ''; } catch (e) { token = ''; }
+
+    function only(id) { ['confirmCard', 'doneCard', 'problemCard'].forEach(function (c) { $(c).hidden = c !== id; }); }
+    function problem(lines) { only('problemCard'); showStatus($('problem'), 'error', '', lines); }
+    function done(text) {
+      // Ask again: if the email just changed, the sites they can open are the new primary email's.
+      TimeOffApi.run('apiWhoAmI', ['portal'], function (who) {
+        only('doneCard');
+        $('inviteCard').hidden = true;
+        $('doneText').textContent = (text ? text + ' ' : '') + 'Open the sites:';
+        var ul = $('sites'); clear(ul);
+        (who.apps || []).forEach(function (a) { var li = el('li'), x = el('a', 'site-link', a.label); x.href = a.url; li.appendChild(x); ul.appendChild(li); });
+        try { history.replaceState(null, '', location.pathname); } catch (e) { /* the link has done its job */ }
+      }, function (err) { if (err.code !== 'auth') problem([err.message]); });
+    }
+
+    /* After signing in: accept the invitation (asking first if they used another email). */
+    function accept(confirmed) {
+      UI.busy(true);
+      TimeOffApi.run('apiAcceptInvite', [token, confirmed], function (res) {
+        UI.busy(false);
+        if (!res.ok) { problem(res.errors); return; }
+        if (res.status === 'confirm') { askFirst(res); return; }
+        done(res.lines.length ? res.lines.join(' ') : '');
+      }, function (err) { UI.busy(false); if (err.code !== 'auth') problem([err.message]); });
+    }
+    function askFirst(res) {
+      only('confirmCard');
+      $('confirmText').textContent = 'You signed in as ' + res.to + '. It will be your main email for the sites, and ' + res.from +
+        ' (the address the invitation went to) will be kept as your second email. Both sign in.' +
+        (res.dropped ? ' This replaces the second email we had for you, ' + res.dropped + '.' : '');
+      $('confirmYes').textContent = 'Yes, use ' + res.to;
+      $('confirmNo').textContent = 'No, sign in with ' + res.from + ' instead';
+    }
+    $('confirmYes').addEventListener('click', function () { accept(true); });
+    $('confirmNo').addEventListener('click', function () { TimeOffApi.signOut(); });
+    $('problemSignOut').addEventListener('click', function () { TimeOffApi.signOut(); });
+
+    function ready(who) {
+      if (!token) {
+        if (who.status === 'member') done(''); else problem(['This page needs the link from your invitation email.', who.message].filter(Boolean));
+        return;
+      }
+      accept(false);
+    }
+    function start(message) {
+      TimeOffApi.start({ app: 'portal', need: 'any', years: false, onReady: ready,
+        signInMessage: message || 'Sign in with Google, or with a code we email you, to accept.' });
+    }
+
+    if (!token) { $('inviteText').textContent = 'Sign in to open the sites.'; start('Sign in with Google, or with a code we email you.'); return; }
+    TimeOffApi.callPublic('apiInviteInfo', [token]).then(function (info) {
+      if (!info.ok) { $('inviteTitle').textContent = 'About your invitation'; $('inviteText').textContent = info.message; start(); return; }
+      $('inviteTitle').textContent = 'Welcome, ' + info.firstName;
+      $('inviteText').textContent = 'You’ve been added to the USC Transplant Surgery Fellowship’s websites:';
+      info.apps.forEach(function (a) { var li = el('li'); li.appendChild(el('b', null, a.label + ': ')); li.appendChild(document.createTextNode(a.about)); $('inviteSteps').appendChild(li); });
+      $('inviteSteps').hidden = false;
+      $('inviteHow').hidden = false;
+      $('inviteHow').textContent = 'Sign in below with ' + info.email + ', or with another email or Google account you’d rather use. ' +
+        'Another one becomes your main email, and ' + info.email + ' is kept as a second email that also signs in.';
+      // The emailed code is offered for the invited address (the sign-in card fills in the last email used).
+      try { localStorage.setItem('fellowship.lastEmail', info.email); } catch (e) { /* private mode */ }
+      start();
+    }, function (err) { $('inviteText').textContent = err.message; start(); });
+  })();
+  </script>
+</body>
+</html>
