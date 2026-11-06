@@ -126,7 +126,8 @@
     function fellowKind(kind) { return kind === 'fellow' || kind === 'hpb'; }
     function isFellow(u) { return fellowKind(kindOf(u)); }
     // A server from before 1.0 sends no kinds: work them out the way registry.gs does (rgKindOf_).
-    var KINDS = [{ key: 'fellow', label: 'Transplant fellow' }, { key: 'hpb', label: 'HPB fellow' }, { key: 'attending', label: 'Attending' }];
+    var KINDS = [{ key: 'fellow', label: 'Transplant fellow' }, { key: 'hpb', label: 'HPB fellow' }, { key: 'attending', label: 'Attending' },
+      { key: '', label: 'Other' }];
     function kindOf(u) {
       if (typeof u.kind === 'string') return u.kind;
       if (u.hpbFellow) return 'hpb';
@@ -657,7 +658,7 @@
     }
 
     /**
-     * Who someone is: transplant fellow, HPB fellow or attending. At most one; tapping the chosen one clears it.
+     * Who someone is: transplant fellow, HPB fellow, attending or other. Exactly one is chosen.
      * Leaving a fellow kind turns their Edit roles into View, since only fellows may have Edit.
      */
     function kindRow() {
@@ -665,10 +666,10 @@
       var box = el('fieldset', 'pf-roles pf-kind');
       box.appendChild(el('legend', null, 'Who they are'));
       var keys = el('div', 'keys rolekeys'); keys.style.setProperty('--n', kinds.length);
-      keys.setAttribute('role', 'group'); keys.setAttribute('aria-label', 'Who they are (one at most)');
+      keys.setAttribute('role', 'group'); keys.setAttribute('aria-label', 'Who they are (choose one)');
       kinds.forEach(function (k) {
         var b = button('tab', k.label, function () {
-          d.kind = d.kind === k.key ? '' : k.key;
+          d.kind = k.key;
           if (!fellowKind(d.kind)) v.apps.forEach(function (a) {
             var r = (d.roles[a.key] || []).filter(function (x) { return x !== 'fellow'; });
             d.roles[a.key] = r.length || !(d.roles[a.key] || []).length ? r : ['viewer'];
@@ -679,7 +680,6 @@
         keys.appendChild(b);
       });
       box.appendChild(keys);
-      box.appendChild(el('span', 'pf-hint', 'Choose none for coordinators and other staff. HPB fellows can share a service with one other fellow.'));
       return box;
     }
 
