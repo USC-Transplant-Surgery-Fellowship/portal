@@ -8,7 +8,7 @@
   main.portal:not([hidden]) { display: flex; flex-direction: column; }
   main.portal > .col { display: contents; }
   #findCard { order: 1; } #peopleCard { order: 2; } #sitesCard { order: 3; } #emails { order: 4; } #signInCard { order: 5; }
-  #sharingCard { order: 6; } #logCard { order: 7; }
+  #sharingCard { order: 6; } #logCard { order: 7; } #activityCard { order: 8; }
 }
 
 /* ── your sites ── */
@@ -46,6 +46,24 @@
 .em-panel h4 { margin: 0 0 6px; font-size: 15px; }
 #signInCard .gsi-button { min-height: 44px; margin: 4px 0 0; }
 #signInCard p { overflow-wrap: anywhere; }
+
+/* ── site activity (super admins) ── */
+#activityCard { margin-top: 16px; }
+#activityWho { margin-bottom: 10px; }
+.act-table { overflow-x: auto; margin: 6px 0 14px; }
+.act-people { width: 100%; border-collapse: collapse; font-size: 14px; }
+.act-people th { text-align: left; font-size: 13px; color: var(--muted); padding: 4px 8px 4px 0; border-bottom: 2px dotted var(--line-strong); }
+.act-people td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.act-visits { list-style: none; margin: 0; padding: 0; }
+.act-visits > li { border-top: 1px solid var(--line); padding: 8px 0; }
+.act-visits summary { cursor: pointer; font-size: 15px; overflow-wrap: anywhere; }
+.act-visits summary .chip { margin-left: 6px; }
+.act-sub { display: block; font-size: 13px; color: var(--muted); margin-left: 18px; }
+.act-events { list-style: none; margin: 6px 0 0 18px; padding: 0; font-size: 14px; }
+.act-events li { padding: 3px 0; overflow-wrap: anywhere; }
+.act-time { display: inline-block; min-width: 72px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.act-events b { margin-right: 4px; }
+.act-no b, .act-bad b { color: var(--err); }
 
 /* ── invitations ── */
 .chip.warn { background: var(--gold-soft); color: var(--ink); border: 1px solid var(--gold-edge); }
