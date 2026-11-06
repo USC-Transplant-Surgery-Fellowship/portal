@@ -79,6 +79,19 @@
         <div id="addForm"></div>
         <div id="people"><div class="loading">Loading…</div></div>
       </section>
+
+      <section class="card" id="activityCard" hidden>
+        <div class="people-title">
+          <h2>Site activity</h2>
+          <button class="secondary small" id="activityLoad" type="button">Show</button>
+        </div>
+        <p class="hint">Super admins only: who used the sites, when, for how long, and what they changed. Signing in and out,
+          opening a site, every change and anything refused are recorded. Looking around is only noted to tell how long they stayed.</p>
+        <label class="label" for="activityWho">Whose</label>
+        <select id="activityWho"><option value="">Everyone</option></select>
+        <div class="status" id="activityStatus" role="status" aria-live="polite"></div>
+        <div id="activity"></div>
+      </section>
     </div>
   </main>
 
@@ -108,7 +121,6 @@
     }
 
     /* ── who's who ── */
-    function appLabel(key) { return (state.view.apps.filter(function (a) { return a.key === key; })[0] || { label: key }).label; }
     function roleLabel(key) { return (state.view.roles.filter(function (r) { return r.key === key; })[0] || { label: key }).label; }
     function isFellow(u) { return Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('fellow') !== -1; }); }
     function isAdmin(u) { return u.superAdmin || Object.keys(u.roles).some(function (k) { return u.roles[k].indexOf('admin') !== -1; }); }
@@ -160,6 +172,7 @@
       if (admin) { renderSharing(); UI.fillLog($('log'), v.log); }
       renderMyEmails();
       renderSignIn();
+      $('activityCard').hidden = !v.me.superAdmin;
       renderSignups();
       renderFilters();
       renderAddForm();
@@ -411,6 +424,71 @@
       });
     }
 
+    /* ── site activity (super admins): visits, newest first, each with what was done ── */
+    var ACT_KIND = { 'in': 'Signed in', bad: 'Sign-in failed', open: 'Opened', 'do': 'Changed', no: 'Refused', out: 'Signed out' };
+    function siteLabel(site) {
+      if (!site) return '';
+      var key = site.replace(/-admin$/, ''), app = (state.view.apps.filter(function (a) { return a.key === key; })[0] || { label: key }).label;
+      return app + (/-admin$/.test(site) ? ' admin' : '');
+    }
+    function when(t, timeOnly) {
+      var tz = (state.activity && state.activity.timeZone) || undefined; // the fellowship's time zone, from the server
+      return new Date(t * 1000).toLocaleString('en-US', timeOnly ? { timeZone: tz, hour: 'numeric', minute: '2-digit' }
+        : { timeZone: tz, weekday: 'short', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    function howLong(sec) { var m = Math.round(sec / 60); return m < 1 ? 'under a minute' : m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; }
+    function loadActivity() {
+      call('apiActivityGet', [{ email: $('activityWho').value }], renderActivity, $('activityStatus'));
+    }
+    function renderActivity(a) {
+      state.activity = a;
+      var box = $('activity'), sel = $('activityWho'), keep = sel.value; clear(box);
+      $('activityLoad').textContent = 'Refresh';
+      showStatus($('activityStatus'));
+      clear(sel); sel.appendChild(el('option', null, 'Everyone')).value = '';
+      a.people.forEach(function (p) { var o = el('option', null, p.name); o.value = p.email; sel.appendChild(o); });
+      sel.value = keep;
+      if (!a.since) { box.appendChild(el('p', 'empty', 'Nothing recorded yet.')); return; }
+      box.appendChild(el('p', 'hint small', 'Recorded since ' + when(a.since) + '. A visit ends when someone signs out or after ' + a.gapMinutes +
+        ' minutes without anything. Visits with Google start when the first site opens (Google sign-ins themselves aren’t seen).'));
+      if (!keep) {
+        var t = el('table', 'act-people'), head = el('tr');
+        ['Person', 'Visits', 'Time', 'Last seen'].forEach(function (h) { head.appendChild(el('th', null, h)); });
+        t.appendChild(head);
+        a.people.forEach(function (p) {
+          var tr = el('tr');
+          [p.name, String(p.visits), howLong(p.seconds), when(p.last)].forEach(function (x) { tr.appendChild(el('td', null, x)); });
+          t.appendChild(tr);
+        });
+        var wrap = el('div', 'act-table'); wrap.appendChild(t); box.appendChild(wrap);
+      }
+      var ul = el('ul', 'act-visits');
+      a.visits.forEach(function (v) {
+        var li = el('li'), d = el('details'), sum = el('summary');
+        sum.appendChild(el('b', null, v.name));
+        var later = Math.floor(v.end / 60) > Math.floor(v.start / 60);
+        sum.appendChild(document.createTextNode(' · ' + when(v.start) + (later ? '–' + when(v.end, true) : '') + ' (' + howLong(v.seconds) + ')'));
+        if (v.active) sum.appendChild(el('span', 'chip ok', 'Now'));
+        sum.appendChild(el('span', 'act-sub', [v.via.length ? 'With ' + v.via.join(' and ') : '', v.sites.map(siteLabel).join(', '),
+          v.signedOut ? 'signed out' : ''].filter(Boolean).join(' · ')));
+        d.appendChild(sum);
+        var evs = el('ol', 'act-events');
+        v.events.filter(function (e) { return e.kind !== 'seen'; }).forEach(function (e) { // "still here" only measures the visit
+          var row = el('li', 'act-' + e.kind);
+          row.appendChild(el('span', 'act-time', when(e.t, true)));
+          row.appendChild(el('b', null, ACT_KIND[e.kind] || e.kind));
+          var text = [siteLabel(e.site), e.kind === 'out' || e.kind === 'in' ? '' : e.what].filter(Boolean).join(': ');
+          if (text) row.appendChild(document.createTextNode(' ' + text));
+          evs.appendChild(row);
+        });
+        d.appendChild(evs);
+        li.appendChild(d);
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+      if (a.more) box.appendChild(el('p', 'hint small', 'Showing the latest ' + a.visits.length + ' visits. Choose a person to see theirs.'));
+    }
+
     /* ── adding and editing ── */
     function draftFor(u) {
       var roles = {};
@@ -638,6 +716,8 @@
     }
 
     /* ── wiring ── */
+    $('activityLoad').addEventListener('click', loadActivity);
+    $('activityWho').addEventListener('change', function () { if ($('activity').firstChild) loadActivity(); });
     $('search').addEventListener('input', function (e) { state.q = e.target.value; if (state.view) renderPeople(); });
     $('addBtn').addEventListener('click', function () {
       startAdd(null);

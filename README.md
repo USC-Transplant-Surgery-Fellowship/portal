@@ -13,7 +13,8 @@ The member list for the USC Transplant Surgery Fellowship's sites: **https://por
   counts from August of their start year through July 31 of their graduating year, so incoming fellows are added in
   the spring and graduates drop out on Aug 1 by themselves), approve or decline **sign-ups**, share the calendars
   with every fellow, change anyone's emails, **invite** people who haven't signed in yet, and see the recent changes.
-  Only a super admin can make or change super admins.
+  Only a super admin can make or change super admins, and only super admins see **Site activity**: each person's
+  visits (when, how long, how they signed in) and what they did.
 - **New people** sign up at `/signup.html`: they sign in (with Google, or a code emailed to any address) and say who
   they are; an admin approves them. The page also explains how to make a Google account with a non-Gmail address.
 - **Invited people** land on `/welcome.html?invite=…` (the link in their invitation email): it says what the sites are
